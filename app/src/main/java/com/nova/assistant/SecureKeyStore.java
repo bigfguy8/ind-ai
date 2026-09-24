@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 
 public class SecureKeyStore {
 
-    private static final String PREFS = "nova_config";
+    private static final String PREFS = "indai_config";
     private static final int PROMPT_VERSION = 2;
 
     private static final String FALLBACK_PROMPT =

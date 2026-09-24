@@ -26,7 +26,7 @@ public final class ToolExecutor {
         }
         if (!NovaAccessibilityService.isRunning()) {
             listener.onResult("Accessibility service is not enabled. "
-                    + "Open NOVA -> Settings -> Capabilities and enable it.");
+                    + "Open Ind AI -> Settings -> Capabilities and enable it.");
             return;
         }
         if (Tools.isDangerous(call.name)) {

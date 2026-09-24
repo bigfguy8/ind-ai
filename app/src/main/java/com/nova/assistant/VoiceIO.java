@@ -2,6 +2,7 @@ package com.nova.assistant;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
@@ -21,6 +22,12 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
         void onSpeechDone();
     }
 
+    // Give the user ~8 seconds of silence before giving up.
+    private static final long SILENCE_LEN_MS = 8000L;
+    private static final long POSSIBLY_SILENCE_LEN_MS = 5000L;
+    private static final long MIN_LEN_MS = 1500L;
+    private static final int MAX_AUTO_RETRIES = 2;
+
     private final Activity activity;
     private SpeechRecognizer recognizer;
     private TextToSpeech tts;
@@ -29,6 +36,7 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
     private Listener listener;
     private int utteranceCounter = 0;
     private String lastUtteranceId = null;
+    private int autoRetriesLeft = MAX_AUTO_RETRIES;
 
     public VoiceIO(Activity activity) {
         this.activity = activity;
@@ -59,31 +67,67 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
     public boolean isTtsReady() { return ttsReady; }
     public boolean isListening() { return listening; }
 
+    public static boolean isRecognitionAvailable(Activity a) {
+        return SpeechRecognizer.isRecognitionAvailable(a);
+    }
+
     public void startListening(Listener l) {
         this.listener = l;
+        this.autoRetriesLeft = MAX_AUTO_RETRIES;
+        startListeningInternal(false);
+    }
+
+    private void startListeningInternal(boolean isRetry) {
+        if (listener == null) return;
+
         if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
-            l.onRecognizeError("Speech recognition not available.");
+            listener.onRecognizeError(
+                    "No speech recognition service found. Install the Google app "
+                    + "(com.google.android.googlequicksearchbox) from the Play Store "
+                    + "or your phone's app store, then try again.");
             return;
         }
-        if (listening) return;
+        if (listening && !isRetry) return;
+
         stopSpeaking();
         if (recognizer == null) {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(activity);
-            recognizer.setRecognitionListener(recognitionListener);
+            try {
+                recognizer = SpeechRecognizer.createSpeechRecognizer(activity);
+                recognizer.setRecognitionListener(recognitionListener);
+            } catch (Exception e) {
+                listener.onRecognizeError("Speech recognizer unavailable: " + e.getMessage());
+                return;
+            }
         }
+
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, activity.getPackageName());
+
+        // Extended silence tolerance — the defaults cut off at ~2s of quiet.
+        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                SILENCE_LEN_MS);
+        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                POSSIBLY_SILENCE_LEN_MS);
+        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
+                MIN_LEN_MS);
+
         listening = true;
-        recognizer.startListening(intent);
+        try {
+            recognizer.startListening(intent);
+        } catch (Exception e) {
+            listening = false;
+            listener.onRecognizeError("Could not start listening: " + e.getMessage());
+        }
     }
 
     public void stopListening() {
         if (recognizer != null && listening) {
-            recognizer.stopListening();
+            try { recognizer.stopListening(); } catch (Exception ignored) {}
         }
         listening = false;
     }
@@ -93,7 +137,7 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
         String clean = stripMarkdown(text);
         if (clean.trim().isEmpty()) return;
         utteranceCounter++;
-        lastUtteranceId = "nova-" + utteranceCounter;
+        lastUtteranceId = "indai-" + utteranceCounter;
         tts.speak(clean, TextToSpeech.QUEUE_ADD, null, lastUtteranceId);
     }
 
@@ -108,7 +152,7 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
     public void shutdown() {
         listening = false;
         if (recognizer != null) {
-            recognizer.destroy();
+            try { recognizer.destroy(); } catch (Exception ignored) {}
             recognizer = null;
         }
         if (tts != null) {
@@ -120,14 +164,55 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
 
     private final RecognitionListener recognitionListener = new RecognitionListener() {
         @Override public void onReadyForSpeech(Bundle params) {}
-        @Override public void onBeginningOfSpeech() {}
+        @Override public void onBeginningOfSpeech() {
+            // Reset retries once the user actually starts speaking
+            autoRetriesLeft = MAX_AUTO_RETRIES;
+        }
         @Override public void onRmsChanged(float rmsdB) {}
         @Override public void onBufferReceived(byte[] buffer) {}
-        @Override public void onEndOfSpeech() { listening = false; }
+
+        @Override
+        public void onEndOfSpeech() {
+            listening = false;
+        }
 
         @Override
         public void onError(int error) {
             listening = false;
+
+            // Silent timeouts: retry automatically without bothering the user.
+            if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    || error == SpeechRecognizer.ERROR_NO_MATCH) {
+                if (autoRetriesLeft > 0 && listener != null) {
+                    autoRetriesLeft--;
+                    activity.runOnUiThread(new Runnable() {
+                        @Override public void run() {
+                            startListeningInternal(true);
+                        }
+                    });
+                    return;
+                }
+                if (listener != null) {
+                    listener.onRecognizeError("Didn't catch that");
+                }
+                return;
+            }
+
+            if (error == SpeechRecognizer.ERROR_CLIENT
+                    && autoRetriesLeft > 0 && listener != null) {
+                autoRetriesLeft--;
+                activity.runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (recognizer != null) {
+                            try { recognizer.destroy(); } catch (Exception ignored) {}
+                            recognizer = null;
+                        }
+                        startListeningInternal(true);
+                    }
+                });
+                return;
+            }
+
             if (listener != null) listener.onRecognizeError(errorToString(error));
         }
 
@@ -138,6 +223,8 @@ public class VoiceIO implements TextToSpeech.OnInitListener {
                     SpeechRecognizer.RESULTS_RECOGNITION);
             if (list != null && !list.isEmpty() && listener != null) {
                 listener.onFinal(list.get(0));
+            } else if (listener != null) {
+                listener.onRecognizeError("Didn't catch that");
             }
         }
 

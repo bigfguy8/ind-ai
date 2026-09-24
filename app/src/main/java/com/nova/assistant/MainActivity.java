@@ -198,7 +198,7 @@ public class MainActivity extends Activity {
         brand.setOnLongClickListener(new View.OnLongClickListener() {
             @Override public boolean onLongClick(View v) {
                 v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-                showModelPicker();
+                showSettings();
                 return true;
             }
         });
@@ -218,8 +218,6 @@ public class MainActivity extends Activity {
         header.addView(spacer(Theme.S1));
 
         header.addView(iconButton(R.drawable.ic_clear, v -> confirmClear()));
-        header.addView(spacer(Theme.S1));
-        header.addView(iconButton(R.drawable.ic_settings, v -> showSettings()));
 
         column.addView(header, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -575,8 +573,15 @@ public class MainActivity extends Activity {
             return;
         }
         if (!SpeechAvailable()) {
-            Toast.makeText(this, "Speech recognition not available on this device.",
-                    Toast.LENGTH_SHORT).show();
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Speech recognition unavailable")
+                    .setMessage("Ind AI couldn't find a speech recognition service on this device.\n\n"
+                            + "To enable voice input:\n"
+                            + "1. Install the Google app from your app store\n"
+                            + "2. Make sure 'Speech Recognition & Synthesis' is installed\n"
+                            + "3. Restart Ind AI and try the mic again")
+                    .setPositiveButton("OK", null)
+                    .show();
             return;
         }
         listening = true;
@@ -1300,6 +1305,15 @@ public class MainActivity extends Activity {
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(Theme.dp(this, Theme.S5), Theme.dp(this, Theme.S3),
                 Theme.dp(this, Theme.S5), Theme.dp(this, Theme.S3));
+
+        TextView changeModel = new TextView(this);
+        changeModel.setText("Change model  (current: " + config.model + ")");
+        changeModel.setTextColor(Theme.PRIMARY);
+        changeModel.setTextSize(Theme.T_CAPTION);
+        changeModel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        changeModel.setPadding(0, 0, 0, Theme.dp(this, Theme.S4));
+        changeModel.setOnClickListener(v -> showModelPicker());
+        layout.addView(changeModel);
 
         final EditText visionField = field(layout, "Vision model (leave blank to use chat model)",
                 config.visionModel == null ? "" : config.visionModel);
