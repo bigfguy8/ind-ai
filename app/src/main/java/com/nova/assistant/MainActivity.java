@@ -152,6 +152,20 @@ public class MainActivity extends Activity {
         buildInterface();
         restoreHistory();
         updateEmptyState();
+
+        if (FirstRunSetup.needsSetup(config)) {
+            main.postDelayed(new Runnable() {
+                @Override public void run() {
+                    FirstRunSetup.show(MainActivity.this, new FirstRunSetup.OnReady() {
+                        @Override public void onReady() {
+                            config = keyStore.load();
+                            applySystemPrompt(true);
+                            appendMessage("Provider configured. Ready.", Sender.AI);
+                        }
+                    });
+                }
+            }, 300);
+        }
     }
 
     private void applySystemPrompt(boolean fresh) {

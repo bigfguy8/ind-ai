@@ -8,47 +8,63 @@ public class ApiConfig {
     public String systemPrompt;
     public String visionModel;
 
-    // Fallback provider — used when primary returns 429 or 5xx
     public String fallbackEndpoint;
     public String fallbackApiKey;
     public String fallbackModel;
 
-    // Vision provider — used for image requests (leave blank to use primary)
     public String visionEndpoint;
     public String visionApiKey;
+
+    public String primaryProviderName;
+    public String fallbackProviderName;
+    public String visionProviderName;
 
     public ApiConfig(String endpoint, String apiKey, String model,
                      String systemPrompt, String visionModel) {
         this(endpoint, apiKey, model, systemPrompt, visionModel,
-                "", "", "", "", "");
+                "", "", "", "", "", "", "", "");
     }
 
     public ApiConfig(String endpoint, String apiKey, String model,
                      String systemPrompt) {
         this(endpoint, apiKey, model, systemPrompt, "",
-                "", "", "", "", "");
+                "", "", "", "", "", "", "", "");
     }
 
     public ApiConfig(String endpoint, String apiKey, String model,
                      String systemPrompt, String visionModel,
                      String fallbackEndpoint, String fallbackApiKey, String fallbackModel,
                      String visionEndpoint, String visionApiKey) {
+        this(endpoint, apiKey, model, systemPrompt, visionModel,
+                fallbackEndpoint, fallbackApiKey, fallbackModel,
+                visionEndpoint, visionApiKey, "", "", "");
+    }
+
+    public ApiConfig(String endpoint, String apiKey, String model,
+                     String systemPrompt, String visionModel,
+                     String fallbackEndpoint, String fallbackApiKey, String fallbackModel,
+                     String visionEndpoint, String visionApiKey,
+                     String primaryProviderName, String fallbackProviderName,
+                     String visionProviderName) {
         this.endpoint = endpoint;
         this.apiKey = apiKey;
         this.model = model;
         this.systemPrompt = systemPrompt;
         this.visionModel = visionModel;
-        this.fallbackEndpoint = fallbackEndpoint == null ? "" : fallbackEndpoint;
-        this.fallbackApiKey = fallbackApiKey == null ? "" : fallbackApiKey;
-        this.fallbackModel = fallbackModel == null ? "" : fallbackModel;
-        this.visionEndpoint = visionEndpoint == null ? "" : visionEndpoint;
-        this.visionApiKey = visionApiKey == null ? "" : visionApiKey;
+        this.fallbackEndpoint = nn(fallbackEndpoint);
+        this.fallbackApiKey = nn(fallbackApiKey);
+        this.fallbackModel = nn(fallbackModel);
+        this.visionEndpoint = nn(visionEndpoint);
+        this.visionApiKey = nn(visionApiKey);
+        this.primaryProviderName = nn(primaryProviderName);
+        this.fallbackProviderName = nn(fallbackProviderName);
+        this.visionProviderName = nn(visionProviderName);
     }
 
+    private static String nn(String s) { return s == null ? "" : s; }
+
     public boolean hasFallback() {
-        return fallbackEndpoint != null
-                && !fallbackEndpoint.trim().isEmpty()
-                && fallbackApiKey != null
+        return !fallbackEndpoint.trim().isEmpty()
                 && !fallbackApiKey.trim().isEmpty();
     }
 
@@ -56,18 +72,15 @@ public class ApiConfig {
         return new ApiConfig(
                 fallbackEndpoint,
                 fallbackApiKey,
-                fallbackModel == null || fallbackModel.trim().isEmpty()
-                        ? model : fallbackModel,
+                fallbackModel.trim().isEmpty() ? model : fallbackModel,
                 systemPrompt,
                 visionModel,
-                "", "", "",
-                visionEndpoint, visionApiKey);
+                "", "", "", visionEndpoint, visionApiKey,
+                fallbackProviderName, "", "");
     }
 
     public boolean hasVisionProvider() {
-        return visionEndpoint != null
-                && !visionEndpoint.trim().isEmpty()
-                && visionApiKey != null
+        return !visionEndpoint.trim().isEmpty()
                 && !visionApiKey.trim().isEmpty();
     }
 
@@ -75,10 +88,10 @@ public class ApiConfig {
         return new ApiConfig(
                 visionEndpoint,
                 visionApiKey,
-                visionModel == null || visionModel.trim().isEmpty()
-                        ? model : visionModel,
+                visionModel.trim().isEmpty() ? model : visionModel,
                 systemPrompt,
                 visionModel,
-                "", "", "", "", "");
+                "", "", "", "", "",
+                visionProviderName, "", "");
     }
 }

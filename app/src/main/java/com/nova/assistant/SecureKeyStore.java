@@ -43,14 +43,14 @@ public class SecureKeyStore {
 
     public ApiConfig load() {
         String savedKey = prefs.getString("api_key", "");
-        if (savedKey.isEmpty()) savedKey = BuildConfig.NOVA_API_KEY;
+        if (savedKey.isEmpty()) savedKey = BuildConfig.INDAI_API_KEY;
 
         String prompt = resolvePrompt();
 
         return new ApiConfig(
-                prefs.getString("endpoint", BuildConfig.NOVA_ENDPOINT),
+                prefs.getString("endpoint", BuildConfig.INDAI_ENDPOINT),
                 savedKey,
-                prefs.getString("model", BuildConfig.NOVA_MODEL),
+                prefs.getString("model", BuildConfig.INDAI_MODEL),
                 prompt,
                 prefs.getString("vision_model", ""),
                 prefs.getString("fallback_endpoint", ""),

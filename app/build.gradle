@@ -13,12 +13,12 @@ android {
         versionCode 1
         versionName "1.0"
 
-        buildConfigField "String", "NOVA_API_KEY",
-                "\"${project.findProperty('NOVA_API_KEY') ?: ''}\""
-        buildConfigField "String", "NOVA_ENDPOINT",
-                "\"${project.findProperty('NOVA_ENDPOINT') ?: 'https://apihub.agnes-ai.com/v1/chat/completions'}\""
-        buildConfigField "String", "NOVA_MODEL",
-                "\"${project.findProperty('NOVA_MODEL') ?: 'agnes-3.0-flash'}\""
+        buildConfigField "String", "INDAI_API_KEY",
+                "\"${project.findProperty('INDAI_API_KEY') ?: ''}\""
+        buildConfigField "String", "INDAI_ENDPOINT",
+                "\"${project.findProperty('INDAI_ENDPOINT') ?: 'https://apihub.agnes-ai.com/v1/chat/completions'}\""
+        buildConfigField "String", "INDAI_MODEL",
+                "\"${project.findProperty('INDAI_MODEL') ?: 'agnes-3.0-flash'}\""
     }
 
     buildFeatures {
