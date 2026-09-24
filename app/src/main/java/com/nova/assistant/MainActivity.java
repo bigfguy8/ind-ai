@@ -1308,61 +1308,9 @@ public class MainActivity extends Activity {
     }
 
     private void showMemory() {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(Theme.dp(this, Theme.S5), Theme.dp(this, Theme.S3),
-                Theme.dp(this, Theme.S5), Theme.dp(this, Theme.S3));
-
-        final List<String> facts = memoryStore.load();
-        TextView head = new TextView(this);
-        head.setText(facts.isEmpty() ? "No memories yet." : "Tap to forget:");
-        head.setTextColor(Theme.TEXT_SECONDARY);
-        head.setTextSize(Theme.T_CAPTION);
-        head.setPadding(0, 0, 0, Theme.dp(this, Theme.S3));
-        layout.addView(head);
-
-        for (final String fact : facts) {
-            TextView row = new TextView(this);
-            row.setText("• " + fact);
-            row.setTextColor(Theme.TEXT_PRIMARY);
-            row.setTextSize(Theme.T_BODY);
-            row.setPadding(0, Theme.dp(this, Theme.S3), 0, Theme.dp(this, Theme.S3));
-            row.setOnClickListener(v -> new AlertDialog.Builder(this)
-                    .setTitle("Forget this?")
-                    .setMessage(fact)
-                    .setPositiveButton("Forget", (d, w) -> {
-                        memoryStore.remove(fact);
-                        applySystemPrompt(false);
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show());
-            layout.addView(row);
-        }
-
-        final EditText newFact = new EditText(this);
-        newFact.setHint("Add memory (e.g. My name is Arya)");
-        newFact.setHintTextColor(Theme.TEXT_TERTIARY);
-        newFact.setTextColor(Theme.TEXT_PRIMARY);
-        newFact.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        newFact.setPadding(0, Theme.dp(this, Theme.S4), 0, Theme.dp(this, Theme.S2));
-        layout.addView(newFact);
-
-        ScrollView sw = new ScrollView(this);
-        sw.addView(layout);
-
-        new AlertDialog.Builder(this)
-                .setTitle("Ind AI Memory")
-                .setView(sw)
-                .setPositiveButton("Add", (d, w) -> {
-                    String f = newFact.getText().toString().trim();
-                    if (!f.isEmpty()) {
-                        memoryStore.add(f);
-                        applySystemPrompt(false);
-                    }
-                })
-                .setNeutralButton("Reminders", (d, w) -> RemindersDialog.show(this))
-                .setNegativeButton("Close", null)
-                .show();
+        // Memory now has its own screen in the bottom nav.
+        // This method is retained as a fallback for the header icon.
+        startActivity(new android.content.Intent(this, MemoryActivity.class));
     }
 
     private void showSettings() {
