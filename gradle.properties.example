@@ -1,0 +1,15 @@
+# Copy this file to gradle.properties and fill in your own values.
+# DO NOT commit gradle.properties — it contains your API key.
+
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+org.gradle.jvmargs=-Xmx1536m
+org.gradle.daemon=true
+
+# Required on Termux/ARM64 — uncomment if building on Android
+# android.aapt2FromMavenOverride=/data/data/com.termux/files/usr/bin/aapt2
+
+# API credentials — get your own key from your provider
+NOVA_API_KEY=your-api-key-here
+NOVA_ENDPOINT=https://apihub.agnes-ai.com/v1/chat/completions
+NOVA_MODEL=agnes-3.0-flash

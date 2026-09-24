@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.nova.assistant'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.indai.assistant"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        buildConfigField "String", "NOVA_API_KEY",
+                "\"${project.findProperty('NOVA_API_KEY') ?: ''}\""
+        buildConfigField "String", "NOVA_ENDPOINT",
+                "\"${project.findProperty('NOVA_ENDPOINT') ?: 'https://apihub.agnes-ai.com/v1/chat/completions'}\""
+        buildConfigField "String", "NOVA_MODEL",
+                "\"${project.findProperty('NOVA_MODEL') ?: 'agnes-3.0-flash'}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

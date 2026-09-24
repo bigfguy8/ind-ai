@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+app/build/
+gradle-app.setting
+.gradletasknamecache
+
+# Local config — CONTAINS YOUR API KEY
+gradle.properties
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keystore
+*.jks
+*.keystore
+keystore.properties
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Logs
+*.log
