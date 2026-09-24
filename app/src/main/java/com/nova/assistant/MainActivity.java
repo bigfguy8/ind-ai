@@ -95,7 +95,7 @@ public class MainActivity extends Activity {
                     if (!trimmed.isEmpty()) {
                         sendText(trimmed);
                     } else {
-                        input.setHint("Ask NOVA...");
+                        input.setHint("Ask Ind AI...");
                     }
                 }
             });
@@ -106,7 +106,7 @@ public class MainActivity extends Activity {
                 @Override public void run() {
                     listening = false;
                     updateMicButton();
-                    input.setHint("Ask NOVA...");
+                    input.setHint("Ask Ind AI...");
                     if (!"Didn't catch that".equals(message) &&
                         !"No speech detected".equals(message)) {
                         Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
@@ -188,7 +188,7 @@ public class MainActivity extends Activity {
         header.setPadding(padH, Theme.dp(this, Theme.S5), padH, Theme.dp(this, Theme.S3));
 
         TextView brand = new TextView(this);
-        brand.setText("N O V A");
+        brand.setText("I N D  A I");
         brand.setTextColor(Theme.TEXT_PRIMARY);
         brand.setTextSize(Theme.T_TITLE);
         brand.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -268,7 +268,7 @@ public class MainActivity extends Activity {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         input = new EditText(this);
-        input.setHint("Ask NOVA...");
+        input.setHint("Ask Ind AI...");
         input.setHintTextColor(Theme.TEXT_TERTIARY);
         input.setTextColor(Theme.TEXT_PRIMARY);
         input.setTextSize(Theme.T_BODY);
@@ -563,7 +563,7 @@ public class MainActivity extends Activity {
             micIcon.setColorFilter(Theme.TEXT_SECONDARY);
             input.setEnabled(true);
             if (input.getText().toString().isEmpty()) {
-                input.setHint("Ask NOVA...");
+                input.setHint("Ask Ind AI...");
             }
         }
     }
@@ -672,7 +672,7 @@ public class MainActivity extends Activity {
         labelRow.setLayoutParams(lrlp);
 
         TextView label = new TextView(this);
-        label.setText(user ? "YOU" : tool ? "ACTION" : "NOVA");
+        label.setText(user ? "YOU" : tool ? "ACTION" : "IND AI");
         label.setTextSize(Theme.T_LABEL);
         label.setLetterSpacing(0.15f);
         label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -743,7 +743,7 @@ public class MainActivity extends Activity {
         cell.setLayoutParams(cellLp);
 
         TextView label = new TextView(this);
-        label.setText("NOVA");
+        label.setText("IND AI");
         label.setTextSize(Theme.T_LABEL);
         label.setLetterSpacing(0.15f);
         label.setTextColor(Theme.PRIMARY);
@@ -1281,7 +1281,7 @@ public class MainActivity extends Activity {
         sw.addView(layout);
 
         new AlertDialog.Builder(this)
-                .setTitle("NOVA Memory")
+                .setTitle("Ind AI Memory")
                 .setView(sw)
                 .setPositiveButton("Add", (d, w) -> {
                     String f = newFact.getText().toString().trim();
