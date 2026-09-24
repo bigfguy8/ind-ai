@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.view.accessibility.AccessibilityNodeInfo;
 
-import org.json.JSONObject;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -95,6 +94,20 @@ public final class ToolExecutor {
                     return;
                 }
 
+                case Tools.CLICK_AT: {
+                    int x = call.args.optInt("x", -1);
+                    int y = call.args.optInt("y", -1);
+                    if (x < 0 || y < 0) {
+                        listener.onResult("click_at: needs x and y coordinates");
+                        return;
+                    }
+                    boolean ok = svc.clickAt(x, y);
+                    listener.onResult(ok
+                            ? "Tapped at (" + x + ", " + y + ")."
+                            : "Could not tap at (" + x + ", " + y + ").");
+                    return;
+                }
+
                 case Tools.TYPE_TEXT: {
                     String t = call.args.optString("text", "");
                     if (t.isEmpty()) { listener.onResult("type_text: missing text"); return; }
@@ -129,7 +142,65 @@ public final class ToolExecutor {
                 }
 
                 case Tools.READ_SCREEN: {
+                    String pkg = svc.getActiveAppPackage();
+                    if (pkg != null && pkg.equals(ctx.getPackageName())) {
+                        listener.onResult(
+                            "Ind AI is on screen. Press home first, or open the target "
+                            + "app before reading the screen.");
+                        return;
+                    }
                     listener.onResult(svc.describeScreen());
+                    return;
+                }
+
+                case Tools.LIST_TAPPABLE: {
+                    String pkg = svc.getActiveAppPackage();
+                    if (pkg != null && pkg.equals(ctx.getPackageName())) {
+                        listener.onResult(
+                            "Ind AI is on screen. Press home first, or open the target "
+                            + "app before listing tappable elements.");
+                        return;
+                    }
+                    listener.onResult(svc.describeClickableElements());
+                    return;
+                }
+
+                case Tools.SEE_SCREEN: {
+                    String pkg = svc.getActiveAppPackage();
+                    if (pkg != null && pkg.equals(ctx.getPackageName())) {
+                        listener.onResult(
+                            "Ind AI is on screen. Press home first, or open the target "
+                            + "app before capturing the screen.");
+                        return;
+                    }
+                    if (!svc.canScreenshot()) {
+                        listener.onResult("Screenshots require Android 11+. "
+                                + "Use list_tappable or read_screen instead.");
+                        return;
+                    }
+                    listener.onResult("__SEE_SCREEN_PENDING__");
+                    final ToolExecutor.Listener lf = listener;
+                    svc.takeScreenshotBitmap(new NovaAccessibilityService.ScreenshotCallback() {
+                        @Override public void onBitmap(android.graphics.Bitmap bmp) {
+                            try {
+                                java.io.File f = new java.io.File(
+                                        ctx.getCacheDir(), "see_screen.jpg");
+                                java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+                                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, fos);
+                                fos.close();
+                                bmp.recycle();
+                                String tappable = svc.describeClickableElements();
+                                lf.onResult("__SEE_SCREEN_PATH__" + f.getAbsolutePath()
+                                        + "\n\n" + tappable);
+                            } catch (Exception e) {
+                                lf.onResult("Screenshot save failed: " + e.getMessage());
+                            }
+                        }
+                        @Override public void onError(String reason) {
+                            lf.onResult("Screenshot unavailable: " + reason
+                                    + "\n\n" + svc.describeClickableElements());
+                        }
+                    });
                     return;
                 }
 
@@ -184,60 +255,6 @@ public final class ToolExecutor {
                     return;
                 }
 
-                case Tools.LIST_TAPPABLE: {
-                    String listing = svc.describeClickableElements();
-                    listener.onResult(listing);
-                    return;
-                }
-
-                case Tools.CLICK_AT: {
-                    int x = call.args.optInt("x", -1);
-                    int y = call.args.optInt("y", -1);
-                    if (x < 0 || y < 0) {
-                        listener.onResult("click_at: needs x and y coordinates");
-                        return;
-                    }
-                    boolean ok = svc.clickAt(x, y);
-                    listener.onResult(ok
-                            ? "Tapped at (" + x + ", " + y + ")."
-                            : "Could not tap at (" + x + ", " + y + ").");
-                    return;
-                }
-
-                case Tools.SEE_SCREEN: {
-                    if (!svc.canScreenshot()) {
-                        listener.onResult("Screenshots require Android 11+. "
-                                + "Use list_tappable or read_screen instead.\n\n"
-                                + svc.describeClickableElements());
-                        return;
-                    }
-                    listener.onResult("__SEE_SCREEN_PENDING__");
-                    final ToolExecutor.Listener lf = listener;
-                    svc.takeScreenshotBitmap(new NovaAccessibilityService.ScreenshotCallback() {
-                        @Override public void onBitmap(android.graphics.Bitmap bmp) {
-                            // Save to cache so VisionClient can read it via file://
-                            try {
-                                java.io.File f = new java.io.File(
-                                        ctx.getCacheDir(), "see_screen.jpg");
-                                java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
-                                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, fos);
-                                fos.close();
-                                bmp.recycle();
-                                String tappable = svc.describeClickableElements();
-                                lf.onResult("__SEE_SCREEN_PATH__" + f.getAbsolutePath()
-                                        + "\n\n" + tappable);
-                            } catch (Exception e) {
-                                lf.onResult("Screenshot save failed: " + e.getMessage());
-                            }
-                        }
-                        @Override public void onError(String reason) {
-                            lf.onResult("Screenshot unavailable: " + reason
-                                    + "\n\n" + svc.describeClickableElements());
-                        }
-                    });
-                    return;
-                }
-
                 default:
                     listener.onResult("Unsupported tool: " + call.name);
             }
@@ -250,8 +267,6 @@ public final class ToolExecutor {
     private static String describe(Tools.Call call) {
         return call.name + " " + call.args.toString();
     }
-
-    private ToolExecutor() {}
 
     private static long parseWhen(String s) {
         s = s.trim();
@@ -284,4 +299,5 @@ public final class ToolExecutor {
         return -1;
     }
 
+    private ToolExecutor() {}
 }

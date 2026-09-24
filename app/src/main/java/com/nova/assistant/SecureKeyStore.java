@@ -10,12 +10,12 @@ import java.nio.charset.StandardCharsets;
 
 public class SecureKeyStore {
 
-    private static final String PREFS = "indai_config";
+    private static final String PREFS = "nova_config";
     private static final int PROMPT_VERSION = 2;
 
     private static final String FALLBACK_PROMPT =
         "You are Ind AI, an advanced personal AI assistant running on Android. " +
-        "Understand → Plan → Act → Verify → Report. Be concise, capable, and honest about limits.";
+        "Understand, plan, act, verify, report. Be concise, capable, honest about limits.";
 
     private final Context context;
     private final SharedPreferences prefs;
@@ -32,6 +32,11 @@ public class SecureKeyStore {
                 .putString("model", config.model)
                 .putString("system_prompt", config.systemPrompt)
                 .putString("vision_model", config.visionModel)
+                .putString("fallback_endpoint", config.fallbackEndpoint)
+                .putString("fallback_api_key", config.fallbackApiKey)
+                .putString("fallback_model", config.fallbackModel)
+                .putString("vision_endpoint", config.visionEndpoint)
+                .putString("vision_api_key", config.visionApiKey)
                 .putInt("prompt_version", PROMPT_VERSION)
                 .apply();
     }
@@ -47,7 +52,12 @@ public class SecureKeyStore {
                 savedKey,
                 prefs.getString("model", BuildConfig.NOVA_MODEL),
                 prompt,
-                prefs.getString("vision_model", "")
+                prefs.getString("vision_model", ""),
+                prefs.getString("fallback_endpoint", ""),
+                prefs.getString("fallback_api_key", ""),
+                prefs.getString("fallback_model", ""),
+                prefs.getString("vision_endpoint", ""),
+                prefs.getString("vision_api_key", "")
         );
     }
 
@@ -55,7 +65,6 @@ public class SecureKeyStore {
         String saved = prefs.getString("system_prompt", "");
         int savedVersion = prefs.getInt("prompt_version", 0);
 
-        // Migrate old default prompts to the new master prompt.
         boolean isOldDefault = saved.isEmpty()
                 || saved.startsWith("You are NOVA,")
                 || saved.startsWith("You are NOVA ")

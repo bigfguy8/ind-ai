@@ -1002,6 +1002,17 @@ public class MainActivity extends Activity {
             }
 
             @Override public void onResult(String result) {
+                if (result == null) result = "(no result)";
+
+                // Intercept see_screen markers so the raw path never hits the chat
+                if (result.equals("__SEE_SCREEN_PENDING__")) {
+                    return;
+                }
+                if (result.startsWith("__SEE_SCREEN_PATH__")) {
+                    handleSeeScreenResult(result);
+                    return;
+                }
+
                 appendMessage(result, Sender.TOOL);
                 toolDepth++;
                 runTurn("TOOL_RESULT: " + result);
@@ -1202,6 +1213,49 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void handleSeeScreenResult(String marker) {
+        // Format: __SEE_SCREEN_PATH__/abs/path\n\n<tappable listing>
+        String body = marker.substring("__SEE_SCREEN_PATH__".length());
+        int split = body.indexOf("\n\n");
+        String path = split >= 0 ? body.substring(0, split).trim() : body.trim();
+        final String tappable = split >= 0 ? body.substring(split + 2).trim() : "";
+
+        final java.io.File f = new java.io.File(path);
+        if (!f.exists()) {
+            appendMessage("Screenshot missing: " + path, Sender.TOOL);
+            toolDepth++;
+            runTurn("TOOL_RESULT: screenshot could not be saved.");
+            return;
+        }
+
+        appendMessage("Captured screen. Analyzing...", Sender.TOOL);
+
+        VisionClient.describeFile(this, config, f, null, new VisionClient.Callback() {
+            @Override public void onSuccess(final String reply) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        appendMessage(reply, Sender.AI);
+                        String combined = "SCREEN CONTENT:\n" + reply
+                                + "\n\nTAPPABLE ELEMENTS:\n" + tappable;
+                        toolDepth++;
+                        runTurn("TOOL_RESULT: " + combined);
+                    }
+                });
+            }
+
+            @Override public void onError(final String error) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        appendMessage("Vision error: " + error, Sender.TOOL);
+                        toolDepth++;
+                        runTurn("TOOL_RESULT: screenshot captured but not described. "
+                                + "Error: " + error);
+                    }
+                });
+            }
+        });
+    }
+
     private void setSending(boolean enabled) {
         sendButton.setEnabled(enabled);
         sendButton.animate().alpha(enabled ? 1f : 0.5f).setDuration(150).start();
@@ -1317,6 +1371,67 @@ public class MainActivity extends Activity {
 
         final EditText visionField = field(layout, "Vision model (leave blank to use chat model)",
                 config.visionModel == null ? "" : config.visionModel);
+
+        // ---------- Fallback provider ----------
+        final LinearLayout fallbackSection = new LinearLayout(this);
+        fallbackSection.setOrientation(LinearLayout.VERTICAL);
+
+        final EditText fbEndpoint = field(fallbackSection,
+                "Fallback endpoint (used on 429 / 5xx)",
+                config.fallbackEndpoint == null ? "" : config.fallbackEndpoint);
+        final EditText fbKey = field(fallbackSection,
+                "Fallback API key",
+                config.fallbackApiKey == null ? "" : config.fallbackApiKey);
+        final EditText fbModel = field(fallbackSection,
+                "Fallback model (blank = same as chat model)",
+                config.fallbackModel == null ? "" : config.fallbackModel);
+
+        TextView fbToggle = new TextView(this);
+        fbToggle.setText(expandToggleLabel("Fallback provider",
+                config.hasFallback()));
+        fbToggle.setTextColor(Theme.PRIMARY);
+        fbToggle.setTextSize(Theme.T_CAPTION);
+        fbToggle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        fbToggle.setPadding(0, Theme.dp(this, Theme.S3), 0, Theme.dp(this, Theme.S2));
+        fallbackSection.setVisibility(config.hasFallback() ? View.VISIBLE : View.GONE);
+        fbToggle.setOnClickListener(v -> {
+            int vis = fallbackSection.getVisibility() == View.VISIBLE
+                    ? View.GONE : View.VISIBLE;
+            fallbackSection.setVisibility(vis);
+            fbToggle.setText(expandToggleLabel("Fallback provider", vis == View.VISIBLE));
+        });
+        layout.addView(fbToggle);
+        layout.addView(fallbackSection);
+
+        // ---------- Vision provider ----------
+        final LinearLayout visionSection = new LinearLayout(this);
+        visionSection.setOrientation(LinearLayout.VERTICAL);
+
+        final EditText vEndpoint = field(visionSection,
+                "Vision endpoint (blank = use chat endpoint)",
+                config.visionEndpoint == null ? "" : config.visionEndpoint);
+        final EditText vKey = field(visionSection,
+                "Vision API key (blank = use chat key)",
+                config.visionApiKey == null ? "" : config.visionApiKey);
+
+        TextView vToggle = new TextView(this);
+        vToggle.setText(expandToggleLabel("Vision provider",
+                config.hasVisionProvider()));
+        vToggle.setTextColor(Theme.PRIMARY);
+        vToggle.setTextSize(Theme.T_CAPTION);
+        vToggle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        vToggle.setPadding(0, Theme.dp(this, Theme.S3), 0, Theme.dp(this, Theme.S2));
+        visionSection.setVisibility(config.hasVisionProvider() ? View.VISIBLE : View.GONE);
+        vToggle.setOnClickListener(v -> {
+            int vis = visionSection.getVisibility() == View.VISIBLE
+                    ? View.GONE : View.VISIBLE;
+            visionSection.setVisibility(vis);
+            vToggle.setText(expandToggleLabel("Vision provider", vis == View.VISIBLE));
+        });
+        layout.addView(vToggle);
+        layout.addView(visionSection);
+
+        // ---------- System prompt ----------
         final EditText promptField = field(layout, "System prompt", config.systemPrompt);
         promptField.setSingleLine(false);
         promptField.setMinLines(4);
@@ -1336,16 +1451,24 @@ public class MainActivity extends Activity {
         });
         layout.addView(resetPrompt);
 
+        ScrollView sw = new ScrollView(this);
+        sw.addView(layout);
+
         new AlertDialog.Builder(this)
                 .setTitle("Settings")
-                .setView(layout)
+                .setView(sw)
                 .setPositiveButton("Save", (d, w) -> {
                     config = new ApiConfig(
                             config.endpoint,
                             config.apiKey,
                             config.model,
                             promptField.getText().toString().trim(),
-                            visionField.getText().toString().trim());
+                            visionField.getText().toString().trim(),
+                            fbEndpoint.getText().toString().trim(),
+                            fbKey.getText().toString().trim(),
+                            fbModel.getText().toString().trim(),
+                            vEndpoint.getText().toString().trim(),
+                            vKey.getText().toString().trim());
                     keyStore.save(config);
                     applySystemPrompt(false);
                     Toast.makeText(MainActivity.this, "Saved.", Toast.LENGTH_SHORT).show();
@@ -1354,6 +1477,10 @@ public class MainActivity extends Activity {
                         ChatExporter.share(MainActivity.this, ai.getHistory()))
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private String expandToggleLabel(String label, boolean expanded) {
+        return (expanded ? "▼  " : "▶  ") + label;
     }
 
     private EditText field(LinearLayout parent, String hint, String value) {

@@ -11,6 +11,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -33,91 +35,124 @@ public class VisionClient {
                                 final Callback cb) {
         new Thread(new Runnable() {
             @Override public void run() {
-                HttpURLConnection conn = null;
                 try {
                     String base64 = loadAndEncode(ctx, imageUri);
                     if (base64 == null) {
                         cb.onError("Could not read image.");
                         return;
                     }
-
-                    String model = visionModel(config);
-                    JSONArray content = new JSONArray();
-                    JSONObject textPart = new JSONObject();
-                    textPart.put("type", "text");
-                    textPart.put("text", userPrompt == null || userPrompt.isEmpty()
-                            ? "Describe this image in detail." : userPrompt);
-                    content.put(textPart);
-
-                    JSONObject imgPart = new JSONObject();
-                    imgPart.put("type", "image_url");
-                    JSONObject imgUrl = new JSONObject();
-                    imgUrl.put("url", "data:image/jpeg;base64," + base64);
-                    imgPart.put("image_url", imgUrl);
-                    content.put(imgPart);
-
-                    JSONObject userMsg = new JSONObject();
-                    userMsg.put("role", "user");
-                    userMsg.put("content", content);
-
-                    JSONArray messages = new JSONArray();
-                    JSONObject sys = new JSONObject();
-                    sys.put("role", "system");
-                    sys.put("content", config.systemPrompt);
-                    messages.put(sys);
-                    messages.put(userMsg);
-
-                    JSONObject body = new JSONObject();
-                    body.put("model", model);
-                    body.put("max_tokens", 1200);
-                    body.put("messages", messages);
-
-                    URL url = new URL(config.endpoint);
-                    conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("POST");
-                    conn.setConnectTimeout(30000);
-                    conn.setReadTimeout(120000);
-                    conn.setDoOutput(true);
-                    conn.setRequestProperty("Content-Type", "application/json");
-                    conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
-
-                    byte[] data = body.toString().getBytes(StandardCharsets.UTF_8);
-                    OutputStream out = conn.getOutputStream();
-                    out.write(data);
-                    out.flush();
-                    out.close();
-
-                    int status = conn.getResponseCode();
-                    InputStream in = status >= 200 && status < 300
-                            ? conn.getInputStream()
-                            : conn.getErrorStream();
-
-                    BufferedReader br = new BufferedReader(new InputStreamReader(in));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = br.readLine()) != null) sb.append(line);
-                    br.close();
-
-                    if (status < 200 || status >= 300) {
-                        cb.onError("Vision HTTP " + status + ": " + sb);
-                        return;
-                    }
-
-                    JSONObject res = new JSONObject(sb.toString());
-                    String reply = res.getJSONArray("choices")
-                            .getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content");
-                    cb.onSuccess(reply);
-
+                    sendImage(config, base64, userPrompt, cb);
                 } catch (Exception e) {
                     cb.onError("Vision error: " + e.getClass().getSimpleName()
                             + " " + e.getMessage());
-                } finally {
-                    if (conn != null) conn.disconnect();
                 }
             }
         }).start();
+    }
+
+    public static void describeFile(final Context ctx, final ApiConfig config,
+                                    final File file, final String userPrompt,
+                                    final Callback cb) {
+        if (file == null || !file.exists()) {
+            cb.onError("Screenshot file missing.");
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    byte[] bytes = readFile(file);
+                    String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
+                    sendImage(config, base64, userPrompt, cb);
+                } catch (Exception e) {
+                    cb.onError("Could not read screenshot: " + e.getMessage());
+                }
+            }
+        }).start();
+    }
+
+    private static void sendImage(ApiConfig config, String base64,
+                                  String userPrompt, Callback cb) {
+        HttpURLConnection conn = null;
+        try {
+            String model = visionModel(config);
+
+            JSONArray content = new JSONArray();
+            JSONObject textPart = new JSONObject();
+            textPart.put("type", "text");
+            textPart.put("text", userPrompt == null || userPrompt.isEmpty()
+                    ? "Describe what is on this screen. Mention app name if visible, "
+                    + "any text, any buttons, and any noteworthy elements."
+                    : userPrompt);
+            content.put(textPart);
+
+            JSONObject imgPart = new JSONObject();
+            imgPart.put("type", "image_url");
+            JSONObject imgUrl = new JSONObject();
+            imgUrl.put("url", "data:image/jpeg;base64," + base64);
+            imgPart.put("image_url", imgUrl);
+            content.put(imgPart);
+
+            JSONObject userMsg = new JSONObject();
+            userMsg.put("role", "user");
+            userMsg.put("content", content);
+
+            JSONArray messages = new JSONArray();
+            JSONObject sys = new JSONObject();
+            sys.put("role", "system");
+            sys.put("content", config.systemPrompt == null
+                    ? "You are Ind AI." : config.systemPrompt);
+            messages.put(sys);
+            messages.put(userMsg);
+
+            JSONObject body = new JSONObject();
+            body.put("model", model);
+            body.put("max_tokens", 1200);
+            body.put("messages", messages);
+
+            URL url = new URL(config.endpoint);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(120000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+
+            byte[] data = body.toString().getBytes(StandardCharsets.UTF_8);
+            OutputStream out = conn.getOutputStream();
+            out.write(data);
+            out.flush();
+            out.close();
+
+            int status = conn.getResponseCode();
+            InputStream in = status >= 200 && status < 300
+                    ? conn.getInputStream()
+                    : conn.getErrorStream();
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(in));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
+            br.close();
+
+            if (status < 200 || status >= 300) {
+                cb.onError("Vision HTTP " + status + ": " + sb);
+                return;
+            }
+
+            JSONObject res = new JSONObject(sb.toString());
+            String reply = res.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+                    .getString("content");
+            cb.onSuccess(reply);
+
+        } catch (Exception e) {
+            cb.onError("Vision error: " + e.getClass().getSimpleName()
+                    + " " + e.getMessage());
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 
     private static String visionModel(ApiConfig config) {
@@ -143,6 +178,23 @@ public class VisionClient {
             return Base64.encodeToString(bytes, Base64.NO_WRAP);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private static byte[] readFile(File f) throws Exception {
+        FileInputStream in = new FileInputStream(f);
+        try {
+            long len = f.length();
+            byte[] buf = new byte[(int) len];
+            int read = 0;
+            while (read < len) {
+                int n = in.read(buf, read, (int) (len - read));
+                if (n < 0) break;
+                read += n;
+            }
+            return buf;
+        } finally {
+            try { in.close(); } catch (Exception ignored) {}
         }
     }
 

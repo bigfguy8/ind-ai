@@ -244,6 +244,13 @@ public class NovaAccessibilityService extends AccessibilityService {
     //  Screenshot (Android 11+ / API 30+)
     // ------------------------------------------------------------------
 
+    public String getActiveAppPackage() {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return null;
+        CharSequence pkg = root.getPackageName();
+        return pkg == null ? null : pkg.toString();
+    }
+
     public boolean canScreenshot() {
         return Build.VERSION.SDK_INT >= 30;
     }
