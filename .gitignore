@@ -32,3 +32,5 @@ keystore.properties
 
 # Logs
 *.log
+gradle.properties.bak
+*.bak
