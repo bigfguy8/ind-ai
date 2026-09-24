@@ -1087,6 +1087,51 @@ public class MainActivity extends Activity {
                 });
             }
 
+            @Override public void onStepRetrying(final Plan plan, final int index) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        if (currentPlanCard != null) {
+                            AgentRenderer.appendNote(MainActivity.this,
+                                    currentPlanCard, index, "↻ retrying...");
+                        }
+                        scroll.post(new Runnable() {
+                            @Override public void run() {
+                                scroll.fullScroll(ScrollView.FOCUS_DOWN);
+                            }
+                        });
+                    }
+                });
+            }
+
+            @Override public void onReplanning(final Plan plan, final int afterIndex,
+                                                final String reason) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        appendMessage("Replanning — " + reason, Sender.TOOL);
+                    }
+                });
+            }
+
+            @Override public void onPlanRevised(final Plan plan) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        // Rebuild the plan card to reflect new step count
+                        if (currentPlanCard != null
+                                && currentPlanCard.root.getParent() instanceof ViewGroup) {
+                            ViewGroup parent = (ViewGroup) currentPlanCard.root.getParent();
+                            int idx = parent.indexOfChild(currentPlanCard.root);
+                            parent.removeView(currentPlanCard.root);
+                            currentPlanCard = AgentRenderer.build(MainActivity.this, plan);
+                            parent.addView(currentPlanCard.root, idx);
+                        } else {
+                            renderAgentPlan(plan);
+                        }
+                        appendMessage("Plan revised (Rev " + plan.revision + ")",
+                                Sender.TOOL);
+                    }
+                });
+            }
+
             @Override public void onReport(final String summary) {
                 main.post(new Runnable() {
                     @Override public void run() {

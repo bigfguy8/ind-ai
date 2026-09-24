@@ -49,19 +49,79 @@ public class Planner {
         "}\n" +
         "\n" +
         "Available tools: open_app, open_url, click_text, click_description, " +
-        "type_text, scroll, press_back, press_home, read_screen, " +
-        "set_reminder, list_reminders, cancel_reminder.";
+        "type_text, scroll, press_back, press_home, read_screen, see_screen, " +
+        "list_tappable, click_at, set_reminder, list_reminders, cancel_reminder.";
+
+    private static final String REPLAN_PROMPT =
+        "You are revising the remaining steps of an in-progress agent plan.\n" +
+        "Some steps already ran. One step just failed. Your job: produce a NEW list of " +
+        "steps to accomplish what remains of the original goal, avoiding the failure.\n" +
+        "\n" +
+        "HARD RULES:\n" +
+        "- Do NOT repeat steps that already succeeded.\n" +
+        "- Do NOT repeat the exact approach that just failed — use a different strategy.\n" +
+        "- If the goal is truly unachievable, return an empty steps array.\n" +
+        "- Each step: self-contained, under 90 chars, imperative.\n" +
+        "\n" +
+        "Respond ONLY with JSON matching the same schema as before:\n" +
+        "{\"steps\": [{\"description\": \"...\", \"tool\": \"...\"}]}";
 
     public static void plan(final ApiConfig config, final String goal,
                             final String memoryBlock, final Callback cb) {
+        String system = SYSTEM_PROMPT;
+        if (memoryBlock != null && !memoryBlock.isEmpty()) {
+            system = system + "\n\nContext about the user:\n" + memoryBlock;
+        }
+        callModel(config, system, goal, cb, goal);
+    }
+
+    /**
+     * Ask the model to re-plan remaining steps given the current state of the plan.
+     * The failed step is the one at `failedIndex`.
+     */
+    public static void replanRemaining(final ApiConfig config, final Plan plan,
+                                       final int failedIndex, final String memoryBlock,
+                                       final Callback cb) {
+        String system = REPLAN_PROMPT;
+        if (memoryBlock != null && !memoryBlock.isEmpty()) {
+            system = system + "\n\nContext about the user:\n" + memoryBlock;
+        }
+        String userMsg = buildReplanContext(plan, failedIndex);
+        callModel(config, system, userMsg, cb, plan.goal);
+    }
+
+    private static String buildReplanContext(Plan plan, int failedIndex) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("ORIGINAL GOAL: ").append(plan.goal).append("\n\n");
+        sb.append("STATUS OF PRIOR STEPS:\n");
+        for (int i = 0; i < plan.steps.size(); i++) {
+            Plan.Step s = plan.steps.get(i);
+            if (s.status == Plan.StepStatus.DONE) {
+                sb.append("  ✓ Step ").append(i + 1).append(": ")
+                  .append(s.description).append("\n");
+                if (!s.result.isEmpty()) {
+                    sb.append("      Result: ").append(s.result).append("\n");
+                }
+            }
+        }
+        sb.append("\nFAILED STEP: Step ").append(failedIndex + 1).append("\n");
+        sb.append("  Description: ").append(plan.steps.get(failedIndex).description)
+          .append("\n");
+        sb.append("  Attempts: ").append(plan.steps.get(failedIndex).attempts).append("\n");
+        sb.append("  Failure result: ")
+          .append(plan.steps.get(failedIndex).result).append("\n\n");
+        sb.append("Now produce a NEW list of steps for what remains, avoiding the failure. ");
+        sb.append("The failed step must be addressed differently.");
+        return sb.toString();
+    }
+
+    private static void callModel(final ApiConfig config, final String system,
+                                  final String userMsg, final Callback cb,
+                                  final String goalForPlan) {
         new Thread(new Runnable() {
             @Override public void run() {
                 HttpURLConnection conn = null;
                 try {
-                    String system = SYSTEM_PROMPT;
-                    if (memoryBlock != null && !memoryBlock.isEmpty()) {
-                        system = system + "\n\nContext about the user:\n" + memoryBlock;
-                    }
                     JSONArray messages = new JSONArray();
                     JSONObject s = new JSONObject();
                     s.put("role", "system");
@@ -69,13 +129,13 @@ public class Planner {
                     messages.put(s);
                     JSONObject u = new JSONObject();
                     u.put("role", "user");
-                    u.put("content", goal);
+                    u.put("content", userMsg);
                     messages.put(u);
 
                     JSONObject body = new JSONObject();
                     body.put("model", config.model);
                     body.put("temperature", 0.2);
-                    body.put("max_tokens", 600);
+                    body.put("max_tokens", 800);
                     body.put("messages", messages);
 
                     URL url = new URL(config.endpoint);
@@ -85,7 +145,9 @@ public class Planner {
                     conn.setReadTimeout(40000);
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/json");
-                    conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+                    if (config.apiKey != null && !config.apiKey.trim().isEmpty()) {
+                        conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+                    }
 
                     byte[] data = body.toString().getBytes(StandardCharsets.UTF_8);
                     OutputStream out = conn.getOutputStream();
@@ -107,13 +169,9 @@ public class Planner {
                             .getString("content")
                             .trim();
 
-                    Plan plan = parsePlan(goal, content);
+                    Plan plan = parsePlan(goalForPlan, content);
                     if (plan == null) {
                         cb.onError("Planner returned unparseable content.");
-                        return;
-                    }
-                    if (plan.size() == 0) {
-                        cb.onError("Planner produced no steps.");
                         return;
                     }
                     cb.onPlan(plan);

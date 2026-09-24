@@ -16,6 +16,7 @@ public final class AgentRenderer {
     public static class PlanCard {
         public View root;
         public TextView statusLabel;
+        public TextView revisionLabel;
         public LinearLayout stepsContainer;
         public final List<StepRow> rows = new ArrayList<>();
     }
@@ -42,13 +43,28 @@ public final class AgentRenderer {
         clp.bottomMargin = Theme.dp(c, Theme.S3);
         wrap.setLayoutParams(clp);
 
+        LinearLayout tagRow = new LinearLayout(c);
+        tagRow.setOrientation(LinearLayout.HORIZONTAL);
+        tagRow.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView tag = new TextView(c);
         tag.setText("AGENT PLAN");
         tag.setTextSize(Theme.T_LABEL);
         tag.setLetterSpacing(0.18f);
         tag.setTextColor(Theme.PRIMARY);
         tag.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        wrap.addView(tag);
+        tag.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        tagRow.addView(tag);
+
+        TextView rev = new TextView(c);
+        rev.setText("");
+        rev.setTextSize(Theme.T_LABEL);
+        rev.setTextColor(Theme.TEXT_SECONDARY);
+        tagRow.addView(rev);
+        card.revisionLabel = rev;
+
+        wrap.addView(tagRow);
 
         TextView goal = new TextView(c);
         goal.setText(plan.goal);
@@ -81,6 +97,11 @@ public final class AgentRenderer {
         card.root = wrap;
         updateAll(c, card, plan);
         return card;
+    }
+
+    /** Rebuild card if step count changed (revision). */
+    public static PlanCard rebuild(Context c, Plan plan) {
+        return build(c, plan);
     }
 
     private static StepRow buildStepRow(Context c, Plan.Step step) {
@@ -147,6 +168,11 @@ public final class AgentRenderer {
                 row.dot.setTextColor(Theme.PRIMARY);
                 row.label.setTextColor(Theme.TEXT_PRIMARY);
                 break;
+            case RETRYING:
+                row.dot.setText("⟳");
+                row.dot.setTextColor(0xFFFFA726);
+                row.label.setTextColor(Theme.TEXT_PRIMARY);
+                break;
             case DONE:
                 row.dot.setText("✓");
                 row.dot.setTextColor(Theme.SUCCESS);
@@ -186,9 +212,21 @@ public final class AgentRenderer {
 
     public static void updateAll(Context c, PlanCard card, Plan plan) {
         if (card == null) return;
+
+        if (card.revisionLabel != null) {
+            if (plan.revision > 0) {
+                card.revisionLabel.setText("Rev " + plan.revision);
+                card.revisionLabel.setTextColor(Theme.PRIMARY);
+            } else {
+                card.revisionLabel.setText("");
+            }
+        }
+
         String status;
         switch (plan.status) {
             case PLANNING:  status = "planning"; break;
+            case REVISING:  status = plan.completedCount() + " of " + plan.size()
+                                    + " steps · revising plan"; break;
             case RUNNING:   status = plan.completedCount() + " of " + plan.size()
                                     + " steps · running"; break;
             case DONE:      status = plan.completedCount() + " of " + plan.size()

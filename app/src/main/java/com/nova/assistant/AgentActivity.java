@@ -235,6 +235,45 @@ public class AgentActivity extends Activity {
                 });
             }
 
+            @Override public void onStepRetrying(Plan plan, final int index) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        if (currentCard != null) {
+                            AgentRenderer.appendNote(AgentActivity.this,
+                                    currentCard, index, "↻ retrying...");
+                        }
+                        scrollDown();
+                    }
+                });
+            }
+
+            @Override public void onReplanning(Plan plan, final int afterIndex,
+                                                final String reason) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        appendNoteBubble("Replanning — " + reason);
+                    }
+                });
+            }
+
+            @Override public void onPlanRevised(final Plan plan) {
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        // Rebuild the plan card
+                        if (currentCard != null
+                                && currentCard.root.getParent() instanceof ViewGroup) {
+                            ViewGroup parent = (ViewGroup) currentCard.root.getParent();
+                            int idx = parent.indexOfChild(currentCard.root);
+                            parent.removeView(currentCard.root);
+                            currentCard = AgentRenderer.build(AgentActivity.this, plan);
+                            parent.addView(currentCard.root, idx);
+                        }
+                        appendNoteBubble("Plan revised (Rev " + plan.revision + ")");
+                        scrollDown();
+                    }
+                });
+            }
+
             @Override public void onReport(final String summary) {
                 main.post(new Runnable() {
                     @Override public void run() {

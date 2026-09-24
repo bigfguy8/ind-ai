@@ -21,6 +21,9 @@ public class AgentSession {
         void onStepStarted(Plan plan, int index);
         void onStepNote(Plan plan, int index, String note);
         void onStepFinished(Plan plan, int index, boolean success, String result);
+        void onStepRetrying(Plan plan, int index);
+        void onReplanning(Plan plan, int afterIndex, String reason);
+        void onPlanRevised(Plan plan);
         void onReport(String summary);
         void onError(String reason);
         void onFinished(Plan plan);
@@ -70,6 +73,19 @@ public class AgentSession {
                         listener.onStepFinished(plan, index, success, result);
                     }
 
+                    @Override public void onStepRetrying(int index) {
+                        listener.onStepRetrying(plan, index);
+                    }
+
+                    @Override public void onReplanning(int afterIndex, String reason) {
+                        listener.onReplanning(plan, afterIndex, reason);
+                    }
+
+                    @Override public void onPlanRevised(Plan revised) {
+                        // plan object is mutated in place by Executor, so same reference
+                        listener.onPlanRevised(revised);
+                    }
+
                     @Override public void onPlanDone(Plan done) {
                         report(done);
                     }
@@ -104,7 +120,6 @@ public class AgentSession {
     }
 
     private String buildSummary(Plan plan) {
-        // Use the model to write the summary if a key is present, else assemble locally.
         if (config.apiKey == null || config.apiKey.isEmpty()) return localSummary(plan);
 
         HttpURLConnection conn = null;
@@ -114,6 +129,7 @@ public class AgentSession {
                 "You are summarizing an autonomous agent run for the user. " +
                 "Write a plain-language report of 2 to 5 sentences. " +
                 "Say what was accomplished, what failed (if anything), and what remains. " +
+                "If the plan was revised mid-run, mention that. " +
                 "Do not use markdown. Do not invent results. Use only the facts given.");
             put(messages, "user", transcript(plan));
 
@@ -130,7 +146,9 @@ public class AgentSession {
             conn.setReadTimeout(30000);
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+            if (config.apiKey != null && !config.apiKey.trim().isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+            }
 
             byte[] data = body.toString().getBytes(StandardCharsets.UTF_8);
             OutputStream out = conn.getOutputStream();
@@ -163,11 +181,15 @@ public class AgentSession {
 
     private static String transcript(Plan plan) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Goal: ").append(plan.goal).append("\n\n");
-        sb.append("Steps:\n");
+        sb.append("Goal: ").append(plan.goal).append("\n");
+        if (plan.revision > 0) {
+            sb.append("Plan revisions: ").append(plan.revision).append("\n");
+        }
+        sb.append("\nSteps:\n");
         for (Plan.Step s : plan.steps) {
             sb.append(s.index + 1).append(". ").append(s.description)
               .append("  [").append(s.status.name()).append("]");
+            if (s.attempts > 0) sb.append(" attempts=").append(s.attempts);
             if (s.result != null && !s.result.isEmpty()) {
                 sb.append("\n   Result: ").append(s.result);
             }
@@ -188,6 +210,10 @@ public class AgentSession {
           .append(" steps completed");
         if (plan.failedCount() > 0) {
             sb.append(", ").append(plan.failedCount()).append(" failed");
+        }
+        if (plan.revision > 0) {
+            sb.append(", plan revised ").append(plan.revision).append(" time")
+              .append(plan.revision == 1 ? "" : "s");
         }
         sb.append(". ");
         if (plan.status == Plan.OverallStatus.CANCELLED) sb.append("Cancelled by user. ");
