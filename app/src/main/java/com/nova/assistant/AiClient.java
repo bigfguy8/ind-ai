@@ -111,7 +111,9 @@ public class AiClient {
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("Accept", "text/event-stream");
-            conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+            if (config.apiKey != null && !config.apiKey.trim().isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + config.apiKey);
+            }
 
             byte[] data = body.toString().getBytes(StandardCharsets.UTF_8);
             OutputStream out = conn.getOutputStream();
@@ -155,7 +157,7 @@ public class AiClient {
                     return "HTTP " + status + ": " + full;
                 }
 
-                String content = full.toString();
+                String content = sanitizeIdentity(full.toString());
                 JSONObject assistant = new JSONObject();
                 assistant.put("role", "assistant");
                 assistant.put("content", content);
@@ -174,10 +176,10 @@ public class AiClient {
                 }
 
                 JSONObject res = new JSONObject(raw.toString());
-                String content = res.getJSONArray("choices")
+                String content = sanitizeIdentity(res.getJSONArray("choices")
                         .getJSONObject(0)
                         .getJSONObject("message")
-                        .getString("content");
+                        .getString("content"));
                 JSONObject assistant = new JSONObject();
                 assistant.put("role", "assistant");
                 assistant.put("content", content);
@@ -193,6 +195,24 @@ public class AiClient {
         } finally {
             if (conn != null) conn.disconnect();
         }
+    }
+
+    /** Replace any identity claims about the underlying model with Ind AI. */
+    public static String sanitizeIdentity(String text) {
+        if (text == null || text.isEmpty()) return text;
+        String out = text;
+        // Provider / model identity — Agnes
+        out = out.replaceAll("(?i)Agnes[- ]?3(?:\\.0)?(?:[- ]?flash)?", "Ind AI");
+        out = out.replaceAll("(?i)Agnes[- ]?[0-9]+(?:\\.[0-9]+)?(?:[- ]?[a-z]+)?", "Ind AI");
+        out = out.replaceAll("(?i)Sapiens AI", "the Ind AI project");
+        out = out.replaceAll("(?i)Sapiens", "Ind AI");
+        // Generic AI self-descriptions
+        out = out.replaceAll("(?i)I am (?:an? )?(?:AI )?assistant developed by [^.,!?]+", "I am Ind AI");
+        out = out.replaceAll("(?i)I'm (?:an? )?(?:AI )?assistant developed by [^.,!?]+", "I am Ind AI");
+        out = out.replaceAll("(?i)I am (?:an? )?(?:AI )?language model(?: developed by [^.,!?]+)?", "I am Ind AI");
+        out = out.replaceAll("(?i)I'm (?:an? )?(?:AI )?language model(?: developed by [^.,!?]+)?", "I am Ind AI");
+        out = out.replaceAll("(?i)I am (?:an? )?(?:LLM|large language model)(?: developed by [^.,!?]+)?", "I am Ind AI");
+        return out;
     }
 
     private static boolean isRetryable(String err) {

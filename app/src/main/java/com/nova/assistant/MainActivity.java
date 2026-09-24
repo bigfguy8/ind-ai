@@ -822,10 +822,6 @@ public class MainActivity extends Activity {
     // ==================================================================
 
     private void sendImage(final String prompt) {
-        if (config.apiKey == null || config.apiKey.isEmpty()) {
-            appendMessage("Set your API key in Settings first.", Sender.AI);
-            return;
-        }
         final android.net.Uri uri = pendingImageUri;
         if (uri == null) return;
 
@@ -871,10 +867,6 @@ public class MainActivity extends Activity {
     }
 
     private void sendText(String text) {
-        if (config.apiKey == null || config.apiKey.isEmpty()) {
-            appendMessage("Set your API key in Settings first.", Sender.AI);
-            return;
-        }
         if (text == null || text.trim().isEmpty()) return;
 
         stopListening();
@@ -952,8 +944,8 @@ public class MainActivity extends Activity {
                             if (parsed.cleanedText.isEmpty()) {
                                 removeStreamingBubble();
                             } else {
-                                streamingBubble.setText(
-                                        MarkdownRenderer.render(parsed.cleanedText));
+                                String safe = AiClient.sanitizeIdentity(parsed.cleanedText);
+                                streamingBubble.setText(MarkdownRenderer.render(safe));
                             }
                         }
                         closeStreamingBubble();
@@ -1374,84 +1366,140 @@ public class MainActivity extends Activity {
         layout.setPadding(Theme.dp(this, Theme.S5), Theme.dp(this, Theme.S3),
                 Theme.dp(this, Theme.S5), Theme.dp(this, Theme.S3));
 
-        TextView changeModel = new TextView(this);
-        changeModel.setText("Change model  (current: " + config.model + ")");
-        changeModel.setTextColor(Theme.PRIMARY);
-        changeModel.setTextSize(Theme.T_CAPTION);
-        changeModel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        changeModel.setPadding(0, 0, 0, Theme.dp(this, Theme.S4));
-        changeModel.setOnClickListener(v -> showModelPicker());
-        layout.addView(changeModel);
-
-        final EditText visionField = field(layout, "Vision model (leave blank to use chat model)",
-                config.visionModel == null ? "" : config.visionModel);
-
-        // ---------- Fallback provider ----------
-        final LinearLayout fallbackSection = new LinearLayout(this);
-        fallbackSection.setOrientation(LinearLayout.VERTICAL);
-
-        final EditText fbEndpoint = field(fallbackSection,
-                "Fallback endpoint (used on 429 / 5xx)",
-                config.fallbackEndpoint == null ? "" : config.fallbackEndpoint);
-        final EditText fbKey = field(fallbackSection,
-                "Fallback API key",
-                config.fallbackApiKey == null ? "" : config.fallbackApiKey);
-        final EditText fbModel = field(fallbackSection,
-                "Fallback model (blank = same as chat model)",
-                config.fallbackModel == null ? "" : config.fallbackModel);
-
-        TextView fbToggle = new TextView(this);
-        fbToggle.setText(expandToggleLabel("Fallback provider",
-                config.hasFallback()));
-        fbToggle.setTextColor(Theme.PRIMARY);
-        fbToggle.setTextSize(Theme.T_CAPTION);
-        fbToggle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        fbToggle.setPadding(0, Theme.dp(this, Theme.S3), 0, Theme.dp(this, Theme.S2));
-        fallbackSection.setVisibility(config.hasFallback() ? View.VISIBLE : View.GONE);
-        fbToggle.setOnClickListener(v -> {
-            int vis = fallbackSection.getVisibility() == View.VISIBLE
-                    ? View.GONE : View.VISIBLE;
-            fallbackSection.setVisibility(vis);
-            fbToggle.setText(expandToggleLabel("Fallback provider", vis == View.VISIBLE));
+        // ---- Primary provider row ----
+        String primaryLabel = resolveLabel(
+                config.primaryProviderName,
+                config.endpoint,
+                "Not set");
+        addProviderRow(layout, "PRIMARY", primaryLabel, new Runnable() {
+            @Override public void run() {
+                ProviderPicker.show(MainActivity.this, config.primaryProviderName,
+                        config.apiKey, new ProviderPicker.OnPick() {
+                    @Override public void onPick(Providers.Provider provider, String apiKey) {
+                        config = new ApiConfig(
+                                provider.endpoint,
+                                apiKey,
+                                provider.defaultModel,
+                                config.systemPrompt,
+                                config.visionModel,
+                                config.fallbackEndpoint, config.fallbackApiKey, config.fallbackModel,
+                                config.visionEndpoint, config.visionApiKey,
+                                provider.name,
+                                config.fallbackProviderName,
+                                config.visionProviderName);
+                        keyStore.save(config);
+                        applySystemPrompt(true);
+                        Toast.makeText(MainActivity.this,
+                                "Primary: " + provider.name, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
         });
-        layout.addView(fbToggle);
-        layout.addView(fallbackSection);
 
-        // ---------- Vision provider ----------
-        final LinearLayout visionSection = new LinearLayout(this);
-        visionSection.setOrientation(LinearLayout.VERTICAL);
-
-        final EditText vEndpoint = field(visionSection,
-                "Vision endpoint (blank = use chat endpoint)",
-                config.visionEndpoint == null ? "" : config.visionEndpoint);
-        final EditText vKey = field(visionSection,
-                "Vision API key (blank = use chat key)",
-                config.visionApiKey == null ? "" : config.visionApiKey);
-
-        TextView vToggle = new TextView(this);
-        vToggle.setText(expandToggleLabel("Vision provider",
-                config.hasVisionProvider()));
-        vToggle.setTextColor(Theme.PRIMARY);
-        vToggle.setTextSize(Theme.T_CAPTION);
-        vToggle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        vToggle.setPadding(0, Theme.dp(this, Theme.S3), 0, Theme.dp(this, Theme.S2));
-        visionSection.setVisibility(config.hasVisionProvider() ? View.VISIBLE : View.GONE);
-        vToggle.setOnClickListener(v -> {
-            int vis = visionSection.getVisibility() == View.VISIBLE
-                    ? View.GONE : View.VISIBLE;
-            visionSection.setVisibility(vis);
-            vToggle.setText(expandToggleLabel("Vision provider", vis == View.VISIBLE));
+        // ---- Fallback provider row ----
+        String fbLabel = config.hasFallback()
+                ? resolveLabel(config.fallbackProviderName, config.fallbackEndpoint, "Set")
+                : "None";
+        addProviderRow(layout, "FALLBACK  (used on 429 / 5xx)", fbLabel, new Runnable() {
+            @Override public void run() {
+                ProviderPicker.show(MainActivity.this, config.fallbackProviderName,
+                        config.fallbackApiKey, new ProviderPicker.OnPick() {
+                    @Override public void onPick(Providers.Provider provider, String apiKey) {
+                        config = new ApiConfig(
+                                config.endpoint, config.apiKey, config.model,
+                                config.systemPrompt, config.visionModel,
+                                provider.endpoint, apiKey, provider.defaultModel,
+                                config.visionEndpoint, config.visionApiKey,
+                                config.primaryProviderName,
+                                provider.name,
+                                config.visionProviderName);
+                        keyStore.save(config);
+                        Toast.makeText(MainActivity.this,
+                                "Fallback: " + provider.name, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
         });
-        layout.addView(vToggle);
-        layout.addView(visionSection);
 
-        // ---------- System prompt ----------
+        if (config.hasFallback()) {
+            TextView clearFb = new TextView(this);
+            clearFb.setText("    Clear fallback");
+            clearFb.setTextColor(Theme.ERROR);
+            clearFb.setTextSize(Theme.T_CAPTION - 1f);
+            clearFb.setPadding(0, 0, 0, Theme.dp(this, Theme.S3));
+            clearFb.setOnClickListener(v -> {
+                config = new ApiConfig(
+                        config.endpoint, config.apiKey, config.model,
+                        config.systemPrompt, config.visionModel,
+                        "", "", "",
+                        config.visionEndpoint, config.visionApiKey,
+                        config.primaryProviderName, "", config.visionProviderName);
+                keyStore.save(config);
+                Toast.makeText(this, "Fallback cleared", Toast.LENGTH_SHORT).show();
+            });
+            layout.addView(clearFb);
+        }
+
+        // ---- Vision provider row ----
+        String vLabel = config.hasVisionProvider()
+                ? resolveLabel(config.visionProviderName, config.visionEndpoint, "Set")
+                : "Uses primary";
+        addProviderRow(layout, "VISION  (for images)", vLabel, new Runnable() {
+            @Override public void run() {
+                ProviderPicker.show(MainActivity.this, config.visionProviderName,
+                        config.visionApiKey, new ProviderPicker.OnPick() {
+                    @Override public void onPick(Providers.Provider provider, String apiKey) {
+                        config = new ApiConfig(
+                                config.endpoint, config.apiKey, config.model,
+                                config.systemPrompt,
+                                provider.defaultModel,
+                                config.fallbackEndpoint, config.fallbackApiKey, config.fallbackModel,
+                                provider.endpoint, apiKey,
+                                config.primaryProviderName,
+                                config.fallbackProviderName,
+                                provider.name);
+                        keyStore.save(config);
+                        Toast.makeText(MainActivity.this,
+                                "Vision: " + provider.name, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        });
+
+        if (config.hasVisionProvider()) {
+            TextView clearV = new TextView(this);
+            clearV.setText("    Clear vision provider");
+            clearV.setTextColor(Theme.ERROR);
+            clearV.setTextSize(Theme.T_CAPTION - 1f);
+            clearV.setPadding(0, 0, 0, Theme.dp(this, Theme.S3));
+            clearV.setOnClickListener(v -> {
+                config = new ApiConfig(
+                        config.endpoint, config.apiKey, config.model,
+                        config.systemPrompt, "",
+                        config.fallbackEndpoint, config.fallbackApiKey, config.fallbackModel,
+                        "", "",
+                        config.primaryProviderName,
+                        config.fallbackProviderName, "");
+                keyStore.save(config);
+                Toast.makeText(this, "Vision cleared", Toast.LENGTH_SHORT).show();
+            });
+            layout.addView(clearV);
+        }
+
+        // ---- System prompt section ----
+        TextView promptLabel = new TextView(this);
+        promptLabel.setText("SYSTEM PROMPT");
+        promptLabel.setTextColor(Theme.TEXT_SECONDARY);
+        promptLabel.setTextSize(Theme.T_CAPTION - 1f);
+        promptLabel.setPadding(0, Theme.dp(this, Theme.S4), 0, Theme.dp(this, Theme.S1));
+        layout.addView(promptLabel);
+
         final EditText promptField = field(layout, "System prompt", config.systemPrompt);
         promptField.setSingleLine(false);
         promptField.setMinLines(4);
 
         TextView resetPrompt = new TextView(this);
-        resetPrompt.setText("Reset system prompt to Ind AI master prompt");
+        resetPrompt.setText("Reset to Ind AI master prompt");
         resetPrompt.setTextColor(Theme.PRIMARY);
         resetPrompt.setTextSize(Theme.T_CAPTION);
         resetPrompt.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -1460,8 +1508,7 @@ public class MainActivity extends Activity {
             String fresh = keyStore.loadDefaultPrompt();
             promptField.setText(fresh);
             Toast.makeText(MainActivity.this,
-                    "Prompt reset. Tap Save to apply.",
-                    Toast.LENGTH_SHORT).show();
+                    "Prompt reset. Tap Save to apply.", Toast.LENGTH_SHORT).show();
         });
         layout.addView(resetPrompt);
 
@@ -1471,30 +1518,72 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Settings")
                 .setView(sw)
-                .setPositiveButton("Save", (d, w) -> {
+                .setPositiveButton("Save prompt", (d, w) -> {
                     config = new ApiConfig(
-                            config.endpoint,
-                            config.apiKey,
-                            config.model,
+                            config.endpoint, config.apiKey, config.model,
                             promptField.getText().toString().trim(),
-                            visionField.getText().toString().trim(),
-                            fbEndpoint.getText().toString().trim(),
-                            fbKey.getText().toString().trim(),
-                            fbModel.getText().toString().trim(),
-                            vEndpoint.getText().toString().trim(),
-                            vKey.getText().toString().trim());
+                            config.visionModel,
+                            config.fallbackEndpoint, config.fallbackApiKey, config.fallbackModel,
+                            config.visionEndpoint, config.visionApiKey,
+                            config.primaryProviderName,
+                            config.fallbackProviderName,
+                            config.visionProviderName);
                     keyStore.save(config);
                     applySystemPrompt(false);
                     Toast.makeText(MainActivity.this, "Saved.", Toast.LENGTH_SHORT).show();
                 })
                 .setNeutralButton("Export", (d, w) ->
                         ChatExporter.share(MainActivity.this, ai.getHistory()))
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Close", null)
                 .show();
     }
 
-    private String expandToggleLabel(String label, boolean expanded) {
-        return (expanded ? "▼  " : "▶  ") + label;
+    private void addProviderRow(LinearLayout parent, String label,
+                                String value, final Runnable onClick) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        int pH = Theme.dp(this, Theme.S4);
+        int pV = Theme.dp(this, Theme.S3);
+        row.setPadding(pH, pV, pH, pV);
+        row.setBackground(Drawables.outlined(this,
+                Theme.SURFACE, Theme.SURFACE_STROKE, Theme.R_MD, 1f));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.bottomMargin = Theme.dp(this, Theme.S2);
+        row.setLayoutParams(rlp);
+
+        TextView lbl = new TextView(this);
+        lbl.setText(label);
+        lbl.setTextColor(Theme.TEXT_SECONDARY);
+        lbl.setTextSize(Theme.T_CAPTION - 1f);
+        row.addView(lbl);
+
+        TextView val = new TextView(this);
+        val.setText(value);
+        val.setTextColor(Theme.PRIMARY);
+        val.setTextSize(Theme.T_BODY);
+        val.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        vlp.topMargin = Theme.dp(this, Theme.S1);
+        row.addView(val, vlp);
+
+        row.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            onClick.run();
+        });
+
+        parent.addView(row);
+    }
+
+    private String resolveLabel(String providerName, String endpoint, String fallback) {
+        if (providerName != null && !providerName.isEmpty()) return providerName;
+        Providers.Provider p = Providers.findByEndpoint(endpoint);
+        if (p != null) return p.name;
+        if (endpoint != null && !endpoint.isEmpty()) return "(custom)";
+        return fallback;
     }
 
     private EditText field(LinearLayout parent, String hint, String value) {

@@ -25,6 +25,8 @@ public final class ProviderPicker {
         int pad = Theme.dp(activity, Theme.S3);
         layout.setPadding(pad, pad, pad, pad);
 
+        final AlertDialog[] dialogRef = new AlertDialog[1];
+
         for (final Providers.Provider p : Providers.ALL) {
             LinearLayout row = new LinearLayout(activity);
             row.setOrientation(LinearLayout.VERTICAL);
@@ -59,10 +61,15 @@ public final class ProviderPicker {
 
             row.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
+                    v.performHapticFeedback(
+                            android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                    if (dialogRef[0] != null) {
+                        dialogRef[0].dismiss();
+                        dialogRef[0] = null;
+                    }
                     if (p.requiresKey) {
                         askForKey(activity, p, picker);
                     } else {
-                        // No key needed — pick immediately
                         picker.onPick(p, "");
                     }
                 }
@@ -74,7 +81,7 @@ public final class ProviderPicker {
         ScrollView sw = new ScrollView(activity);
         sw.addView(layout);
 
-        new AlertDialog.Builder(activity)
+        dialogRef[0] = new AlertDialog.Builder(activity)
                 .setTitle("Choose provider")
                 .setView(sw)
                 .setNegativeButton("Cancel", null)

@@ -34,3 +34,10 @@ keystore.properties
 *.log
 gradle.properties.bak
 *.bak
+
+# Provider key backups — NEVER commit
+gradle.properties.real
+gradle.properties.local
+gradle.properties.*.bak
+*.properties.real
+*.properties.bak

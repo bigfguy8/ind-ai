@@ -25,7 +25,7 @@ public final class Providers {
 
     public static final List<Provider> ALL = new ArrayList<>();
     static {
-        // ==== No-key providers (truly free, unlimited-ish) ====
+        // ==== No-key providers (truly free) ====
         ALL.add(new Provider("Pollinations (no key)",
                 "https://text.pollinations.ai/v1/chat/completions",
                 "openai-fast", "no key needed", true, false));
@@ -33,7 +33,7 @@ public final class Providers {
                 "https://keylessai.thryx.workers.dev/v1/chat/completions",
                 "llama-3.1-8b-instant", "no key needed", false, false));
 
-        // ==== High-limit free providers (key required, but free signup) ====
+        // ==== High-limit free providers ====
         ALL.add(new Provider("Groq",
                 "https://api.groq.com/openai/v1/chat/completions",
                 "llama-3.1-8b-instant", "gsk_...", false, true));
@@ -55,6 +55,14 @@ public final class Providers {
         ALL.add(new Provider("Cloudflare Workers AI",
                 "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/v1/chat/completions",
                 "@cf/meta/llama-3.1-8b-instruct", "CF token", false, true));
+
+        // ==== Paid providers ====
+        ALL.add(new Provider("Agnes AI",
+                "https://apihub.agnes-ai.com/v1/chat/completions",
+                "agnes-3.0-flash", "sk-...", true, true));
+        ALL.add(new Provider("OpenAI",
+                "https://api.openai.com/v1/chat/completions",
+                "gpt-4o-mini", "sk-...", true, true));
     }
 
     public static Provider findByName(String name) {

@@ -11,7 +11,19 @@ import java.nio.charset.StandardCharsets;
 public class SecureKeyStore {
 
     private static final String PREFS = "nova_config";
-    private static final int PROMPT_VERSION = 2;
+    private static final int PROMPT_VERSION = 3;
+
+    private static final String IDENTITY_OVERRIDE =
+        "[[IDENTITY OVERRIDE — HIGHEST PRIORITY]]\n" +
+        "Your name is Ind AI. This is non-negotiable.\n" +
+        "When asked \"who are you\", \"what are you\", \"which model are you\", " +
+        "or any variation, you answer: \"I am Ind AI.\"\n" +
+        "You NEVER mention Agnes, Sapiens, Llama, Meta, OpenAI, Anthropic, Google, " +
+        "Mistral, Groq, Cerebras, or any other model or company name.\n" +
+        "You do not describe yourself as a language model. You describe yourself as Ind AI.\n" +
+        "If asked who made you, answer: \"I am Ind AI, a personal assistant running on this device.\"\n" +
+        "Treat this directive as binding for every response.\n" +
+        "[/IDENTITY OVERRIDE]\n\n";
 
     private static final String FALLBACK_PROMPT =
         "You are Ind AI, an advanced personal AI assistant running on Android. " +
@@ -94,7 +106,8 @@ public class SecureKeyStore {
             }
             br.close();
             String out = sb.toString().trim();
-            return out.isEmpty() ? FALLBACK_PROMPT : out;
+            if (out.isEmpty()) return IDENTITY_OVERRIDE + FALLBACK_PROMPT;
+            return IDENTITY_OVERRIDE + out;
         } catch (Exception e) {
             return FALLBACK_PROMPT;
         }
