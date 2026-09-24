@@ -20,6 +20,16 @@ public final class Tools {
     public static final String LIST_TAPPABLE      = "list_tappable";
     public static final String CLICK_AT           = "click_at";
 
+    // New in Round 4
+    public static final String SEND_SMS           = "send_sms";
+    public static final String MAKE_CALL          = "make_call";
+    public static final String SET_ALARM          = "set_alarm";
+    public static final String NAVIGATE_TO        = "navigate_to";
+    public static final String SHARE_TEXT         = "share_text";
+    public static final String SEARCH_WEB         = "search_web";
+    public static final String PLAY_MUSIC         = "play_music";
+    public static final String GET_TIME           = "get_time";
+
     public static final String SCHEMA_PROMPT =
         "\n\nDEVICE CONTROL TOOLS\n" +
         "You can request device actions by emitting a single JSON block exactly like this:\n" +
@@ -41,9 +51,17 @@ public final class Tools {
         "- set_reminder(when, text)  schedule a reminder. when is ISO time or +15m/+2h/+1d\n" +
         "- list_reminders()  list scheduled reminders\n" +
         "- cancel_reminder(id)  cancel a reminder by its id\n" +
+        "- send_sms(phone, message)  open SMS composer with number and text. Requires confirmation.\n" +
+        "- make_call(phone)  open dialer with number. Requires confirmation.\n" +
+        "- set_alarm(time, label)  set an alarm. time is HH:MM or +15m/+2h\n" +
+        "- navigate_to(location)  open Maps directions to a location\n" +
+        "- share_text(text)  open Android share sheet with this text\n" +
+        "- search_web(query)  open a Google search for the query\n" +
+        "- play_music(query)  play a song/artist in the default music app. Omit query to just open the player\n" +
+        "- get_time()  current date and time\n" +
         "Rules:\n" +
-        "- When the user asks what is on screen, or references something visually (icon, image, popup, button), call see_screen first.\n" +
-        "- When the user asks to tap something that has no clear text, call list_tappable to find coordinates, then click_at.\n" +
+        "- When the user asks what is on screen, or references something visually, call see_screen first.\n" +
+        "- When the user asks to tap something with no clear text, call list_tappable then click_at.\n" +
         "- Only use a tool when the user explicitly asks you to perform a device action.\n" +
         "- Never invent tools. Never output shell commands.\n" +
         "- If a task needs several steps, do them one at a time and wait for each result.\n" +
@@ -76,6 +94,14 @@ public final class Tools {
             case SEE_SCREEN:
             case LIST_TAPPABLE:
             case CLICK_AT:
+            case SEND_SMS:
+            case MAKE_CALL:
+            case SET_ALARM:
+            case NAVIGATE_TO:
+            case SHARE_TEXT:
+            case SEARCH_WEB:
+            case PLAY_MUSIC:
+            case GET_TIME:
                 return true;
             default:
                 return false;
@@ -84,7 +110,9 @@ public final class Tools {
 
     public static boolean isDangerous(String name) {
         if (name == null) return false;
-        return TYPE_TEXT.equals(name);
+        return TYPE_TEXT.equals(name)
+                || SEND_SMS.equals(name)
+                || MAKE_CALL.equals(name);
     }
 
     private Tools() {}

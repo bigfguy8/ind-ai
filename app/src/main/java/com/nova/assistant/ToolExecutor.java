@@ -255,6 +255,160 @@ public final class ToolExecutor {
                     return;
                 }
 
+                case Tools.SEND_SMS: {
+                    String phone = call.args.optString("phone", "").trim();
+                    String msg = call.args.optString("message", "").trim();
+                    if (phone.isEmpty() || msg.isEmpty()) {
+                        listener.onResult("send_sms: needs phone and message");
+                        return;
+                    }
+                    Intent i = new Intent(Intent.ACTION_SENDTO,
+                            Uri.parse("smsto:" + phone));
+                    i.putExtra("sms_body", msg);
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(i);
+                        listener.onResult("SMS composer opened for " + phone
+                                + ". Tap send to confirm.");
+                    } catch (Exception e) {
+                        listener.onResult("No SMS app available.");
+                    }
+                    return;
+                }
+
+                case Tools.MAKE_CALL: {
+                    String phone = call.args.optString("phone", "").trim();
+                    if (phone.isEmpty()) {
+                        listener.onResult("make_call: needs phone");
+                        return;
+                    }
+                    Intent i = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(i);
+                        listener.onResult("Dialer opened for " + phone + ".");
+                    } catch (Exception e) {
+                        listener.onResult("No dialer available.");
+                    }
+                    return;
+                }
+
+                case Tools.SET_ALARM: {
+                    String time = call.args.optString("time", "").trim();
+                    String label = call.args.optString("label", "Ind AI alarm").trim();
+                    if (time.isEmpty()) {
+                        listener.onResult("set_alarm: needs time");
+                        return;
+                    }
+                    long at = parseWhen(time);
+                    if (at <= 0) {
+                        listener.onResult("set_alarm: could not parse time \"" + time + "\"");
+                        return;
+                    }
+                    java.util.Calendar cal = java.util.Calendar.getInstance();
+                    cal.setTimeInMillis(at);
+                    int hour = cal.get(java.util.Calendar.HOUR_OF_DAY);
+                    int minute = cal.get(java.util.Calendar.MINUTE);
+                    Intent i = new Intent(android.provider.AlarmClock.ACTION_SET_ALARM);
+                    i.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour);
+                    i.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute);
+                    i.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label);
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(i);
+                        listener.onResult(String.format(
+                                "Alarm set for %02d:%02d — %s", hour, minute, label));
+                    } catch (Exception e) {
+                        listener.onResult("Could not open alarm app.");
+                    }
+                    return;
+                }
+
+                case Tools.NAVIGATE_TO: {
+                    String loc = call.args.optString("location", "").trim();
+                    if (loc.isEmpty()) {
+                        listener.onResult("navigate_to: needs location");
+                        return;
+                    }
+                    Intent i = new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("geo:0,0?q=" + Uri.encode(loc)));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(i);
+                        listener.onResult("Opened Maps for: " + loc);
+                    } catch (Exception e) {
+                        listener.onResult("No Maps app available.");
+                    }
+                    return;
+                }
+
+                case Tools.SHARE_TEXT: {
+                    String text = call.args.optString("text", "").trim();
+                    if (text.isEmpty()) {
+                        listener.onResult("share_text: needs text");
+                        return;
+                    }
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    Intent chooser = Intent.createChooser(i, "Share");
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(chooser);
+                        listener.onResult("Share sheet opened.");
+                    } catch (Exception e) {
+                        listener.onResult("No share target available.");
+                    }
+                    return;
+                }
+
+                case Tools.SEARCH_WEB: {
+                    String q = call.args.optString("query", "").trim();
+                    if (q.isEmpty()) {
+                        listener.onResult("search_web: needs query");
+                        return;
+                    }
+                    Intent i = new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://www.google.com/search?q=" + Uri.encode(q)));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(i);
+                        listener.onResult("Opened search for: " + q);
+                    } catch (Exception e) {
+                        listener.onResult("No browser available.");
+                    }
+                    return;
+                }
+
+                case Tools.PLAY_MUSIC: {
+                    String q = call.args.optString("query", "").trim();
+                    Intent i;
+                    if (q.isEmpty()) {
+                        i = new Intent(android.content.Intent.ACTION_MAIN);
+                        i.addCategory(android.content.Intent.CATEGORY_APP_MUSIC);
+                    } else {
+                        i = new Intent("android.media.action.MEDIA_PLAY_FROM_SEARCH");
+                        i.putExtra(android.app.SearchManager.QUERY, q);
+                    }
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        ctx.startActivity(i);
+                        listener.onResult(q.isEmpty()
+                                ? "Opened music player."
+                                : "Playing: " + q);
+                    } catch (Exception e) {
+                        listener.onResult("No music app available.");
+                    }
+                    return;
+                }
+
+                case Tools.GET_TIME: {
+                    java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat(
+                            "EEEE, MMM d, yyyy · HH:mm", java.util.Locale.getDefault());
+                    listener.onResult(fmt.format(new java.util.Date()));
+                    return;
+                }
+
                 default:
                     listener.onResult("Unsupported tool: " + call.name);
             }
