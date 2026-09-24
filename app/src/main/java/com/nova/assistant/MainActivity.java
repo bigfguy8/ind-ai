@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
     private SecureKeyStore keyStore;
     private ChatStore chatStore;
     private MemoryStore memoryStore;
+    private IdentityStore identityStore;
     private ApiConfig config;
     private final AiClient ai = new AiClient();
     private VoiceIO voice;
@@ -139,6 +140,7 @@ public class MainActivity extends Activity {
         config = keyStore.load();
         chatStore = new ChatStore(this);
         memoryStore = new MemoryStore(this, config);
+        identityStore = new IdentityStore(this);
         voice = new VoiceIO(this);
 
         JSONArray saved = chatStore.load();
@@ -169,7 +171,9 @@ public class MainActivity extends Activity {
     }
 
     private void applySystemPrompt(boolean fresh) {
+        String identityBlock = identityStore == null ? "" : identityStore.buildPromptBlock();
         String full = config.systemPrompt
+                + identityBlock
                 + memoryStore.asSystemBlock()
                 + Tools.SCHEMA_PROMPT;
         if (fresh) {
@@ -900,7 +904,8 @@ public class MainActivity extends Activity {
             @Override public void onBlock(final String block) {
                 main.post(new Runnable() {
                     @Override public void run() {
-                        String full = config.systemPrompt + block + Tools.SCHEMA_PROMPT;
+                        String idBlock = identityStore == null ? "" : identityStore.buildPromptBlock();
+                        String full = config.systemPrompt + idBlock + block + Tools.SCHEMA_PROMPT;
                         ai.updateSystem(full);
                         runTurn(userMessage);
                     }
@@ -1486,6 +1491,34 @@ public class MainActivity extends Activity {
             layout.addView(clearV);
         }
 
+        // ---- Personality section ----
+        TextView personalityLabel = new TextView(this);
+        personalityLabel.setText("PERSONALITY");
+        personalityLabel.setTextColor(Theme.TEXT_SECONDARY);
+        personalityLabel.setTextSize(Theme.T_CAPTION - 1f);
+        personalityLabel.setPadding(0, Theme.dp(this, Theme.S4), 0, Theme.dp(this, Theme.S1));
+        layout.addView(personalityLabel);
+
+        final EditText userNameField = field(layout, "Your name",
+                identityStore.getUserName());
+        final EditText userRoleField = field(layout, "Your role / context (optional)",
+                identityStore.getUserRole());
+
+        addChoiceRow(layout, "Tone", identityStore.getTone(),
+                new String[]{ IdentityStore.TONE_CASUAL, IdentityStore.TONE_FORMAL,
+                        IdentityStore.TONE_CONCISE, IdentityStore.TONE_DETAILED },
+                value -> identityStore.setTone(value));
+
+        addChoiceRow(layout, "Language", identityStore.getLanguage(),
+                new String[]{ IdentityStore.LANG_AUTO, IdentityStore.LANG_ENGLISH,
+                        IdentityStore.LANG_BENGALI, IdentityStore.LANG_HINDI },
+                value -> identityStore.setLanguage(value));
+
+        addChoiceRow(layout, "Greeting", identityStore.getGreeting(),
+                new String[]{ IdentityStore.GREETING_WARM, IdentityStore.GREETING_SIMPLE,
+                        IdentityStore.GREETING_PROFESSIONAL },
+                value -> identityStore.setGreeting(value));
+
         // ---- System prompt section ----
         TextView promptLabel = new TextView(this);
         promptLabel.setText("SYSTEM PROMPT");
@@ -1518,7 +1551,9 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Settings")
                 .setView(sw)
-                .setPositiveButton("Save prompt", (d, w) -> {
+                .setPositiveButton("Save", (d, w) -> {
+                    identityStore.setUserName(userNameField.getText().toString().trim());
+                    identityStore.setUserRole(userRoleField.getText().toString().trim());
                     config = new ApiConfig(
                             config.endpoint, config.apiKey, config.model,
                             promptField.getText().toString().trim(),
@@ -1573,6 +1608,57 @@ public class MainActivity extends Activity {
         row.setOnClickListener(v -> {
             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             onClick.run();
+        });
+
+        parent.addView(row);
+    }
+
+    public interface ChoiceConsumer {
+        void accept(String value);
+    }
+
+    private void addChoiceRow(LinearLayout parent, String label, String current,
+                              final String[] options, final ChoiceConsumer onPick) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        int pH = Theme.dp(this, Theme.S4);
+        int pV = Theme.dp(this, Theme.S3);
+        row.setPadding(pH, pV, pH, pV);
+        row.setBackground(Drawables.outlined(this,
+                Theme.SURFACE, Theme.SURFACE_STROKE, Theme.R_MD, 1f));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.bottomMargin = Theme.dp(this, Theme.S2);
+        row.setLayoutParams(rlp);
+
+        TextView lbl = new TextView(this);
+        lbl.setText(label);
+        lbl.setTextColor(Theme.TEXT_SECONDARY);
+        lbl.setTextSize(Theme.T_CAPTION);
+        lbl.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(lbl);
+
+        final TextView value = new TextView(this);
+        value.setText(current);
+        value.setTextColor(Theme.PRIMARY);
+        value.setTextSize(Theme.T_BODY);
+        value.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        row.addView(value);
+
+        row.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            new AlertDialog.Builder(this)
+                    .setTitle(label)
+                    .setItems(options, (d, which) -> {
+                        value.setText(options[which]);
+                        onPick.accept(options[which]);
+                        Toast.makeText(MainActivity.this,
+                                label + ": " + options[which], Toast.LENGTH_SHORT).show();
+                    })
+                    .show();
         });
 
         parent.addView(row);
