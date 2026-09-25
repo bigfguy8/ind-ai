@@ -9,15 +9,12 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <queries>
-        <!-- Voice -->
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
-
-        <!-- Round 4: device tools -->
         <intent>
             <action android:name="android.intent.action.DIAL" />
             <data android:scheme="tel" />
@@ -50,7 +47,7 @@
             <data android:mimeType="text/plain" />
         </intent>
         <intent>
-            <action android:name="android.intent.action.MEDIA_PLAY_FROM_SEARCH" />
+            <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
         </intent>
         <intent>
             <action android:name="android.intent.action.MUSIC_PLAYER" />
@@ -66,6 +63,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

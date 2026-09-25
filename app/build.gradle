@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'com.nova.assistant'
+    namespace 'com.indai.assistant'
     compileSdk 34
 
     defaultConfig {
@@ -11,7 +11,7 @@ android {
         minSdk 21
         targetSdk 34
         versionCode 1
-        versionName "1.0"
+        versionName "1.6.1"
 
         buildConfigField "String", "INDAI_API_KEY",
                 "\"${project.findProperty('INDAI_API_KEY') ?: ''}\""
