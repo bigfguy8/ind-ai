@@ -189,7 +189,7 @@ public class MainActivity extends Activity {
     private void applySystemPrompt(boolean fresh) {
         String identityBlock = identityStore == null ? "" : identityStore.buildPromptBlock();
         String voiceBlock = speakerOn ? VoicePresence.DIRECTIVE : "";
-        boolean acc = NovaAccessibilityService.isRunning();
+        boolean acc = IndAIAccessibilityService.isRunning();
         String schema = Tools.buildSchema(acc);
         String full = config.systemPrompt
                 + identityBlock
@@ -961,6 +961,12 @@ public class MainActivity extends Activity {
             setSending(true);
             return;
         }
+        if (text != null && text.trim().equalsIgnoreCase(".ctx")) {
+            appendMessage(".ctx", Sender.USER);
+            String diag = ContextBuilder.diagnostic(ai.getHistoryAsList());
+            appendMessage(diag, Sender.TOOL);
+            return;
+        }
         if (text != null && text.trim().equalsIgnoreCase(".diag")) {
             appendMessage(".diag", Sender.USER);
             setSending(false);
@@ -1012,7 +1018,7 @@ public class MainActivity extends Activity {
                     @Override public void run() {
                         String idBlock = identityStore == null ? "" : identityStore.buildPromptBlock();
                         String voiceBlock = speakerOn ? VoicePresence.DIRECTIVE : "";
-                        boolean acc = NovaAccessibilityService.isRunning();
+                        boolean acc = IndAIAccessibilityService.isRunning();
                         String schema = Tools.buildSchema(acc);
                         String full = config.systemPrompt + idBlock + voiceBlock + block + schema;
                         ai.updateSystem(full);
@@ -1684,12 +1690,12 @@ public class MainActivity extends Activity {
         });
 
         // ---- Screen Control status row ----
-        boolean accOn = NovaAccessibilityService.isRunning();
+        boolean accOn = IndAIAccessibilityService.isRunning();
         String accLabel = accOn ? "Enabled" : "Off (optional)";
         addProviderRow(layout, "SCREEN CONTROL  (optional)",
                 accLabel, new Runnable() {
             @Override public void run() {
-                if (NovaAccessibilityService.isRunning()) {
+                if (IndAIAccessibilityService.isRunning()) {
                     Toast.makeText(MainActivity.this,
                             "Screen control is already on.", Toast.LENGTH_SHORT).show();
                     return;

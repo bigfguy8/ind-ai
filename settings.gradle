@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "NOVA"
+rootProject.name = "IndAI"
 include ":app"

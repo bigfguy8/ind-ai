@@ -21,7 +21,7 @@ public final class AccessibilityOnboarding {
 
     /** Should we show the accessibility prompt right now? */
     public static boolean shouldPrompt(Activity a) {
-        if (NovaAccessibilityService.isRunning()) return false;
+        if (IndAIAccessibilityService.isRunning()) return false;
         SharedPreferences p = a.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (p.getBoolean(KEY_ASKED, false)) return false;
         return true;

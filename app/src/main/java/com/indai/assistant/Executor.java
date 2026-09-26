@@ -26,12 +26,12 @@ public final class Executor {
         boolean isCancelled();
     }
 
-    private static final int MAX_ITER_PER_STEP = 3;
+    private static final int MAX_ITER_PER_STEP = 2;
     private static final int TOOL_TIMEOUT_MS = 10000;
     private static final int MAX_STEP_RETRIES = 0;
     private static final int MAX_REPLANS = 1;
     private static final long API_RETRY_DELAY_MS = 3500;
-    private static final long MIN_CALL_GAP_MS = 900;
+    private static final long MIN_CALL_GAP_MS = 2000;
     private static long lastCallMs = 0;
 
     private static final String STEP_SYSTEM =
@@ -224,15 +224,25 @@ public final class Executor {
             boolean toolFailed = looksLikeFailure(toolResult);
             anyToolFailed = toolFailed;
 
+            // ---- SINGLE-SHOT EXECUTION ----
+            // If the tool succeeded, mark the step done immediately.
+            // This avoids a second LLM call to "interpret" the result, halving
+            // the total LLM calls per step. Only failed tools trigger a retry
+            // iteration with a follow-up LLM call.
+            if (!toolFailed) {
+                step.status = Plan.StepStatus.DONE;
+                step.result = toolResult;
+                step.finishedAt = System.currentTimeMillis();
+                return true;
+            }
+
+            // Tool failed — feed result back once for a single recovery attempt
             put(messages, "assistant", raw);
             put(messages, "user",
                     "TOOL_RESULT: " + toolResult + "\n"
-                    + (toolFailed
-                        ? "That looks like a failure. If you can achieve the step differently, "
-                          + "emit another tool_call now. Otherwise reply exactly: "
-                          + "DONE: not possible — <reason>.\n"
-                        : "If this step is complete, reply with a one-sentence summary "
-                          + "starting with DONE:. Otherwise emit the next tool_call.\n"));
+                    + "That looks like a failure. If you can achieve the step differently, "
+                    + "emit another tool_call now. Otherwise reply exactly: "
+                    + "DONE: not possible — <reason>.\n");
         }
 
         step.result = anyToolFailed
@@ -394,7 +404,8 @@ public final class Executor {
                 || r.startsWith("no share")
                 || r.contains("disconnected")
                 || r.contains("accessibility service is not enabled")
-                || r.contains("needs accessibility");
+                || r.contains("needs accessibility")
+                || r.contains("[unverified —");
     }
 
     private static String buildStepContext(Plan plan, Plan.Step step) {
@@ -414,13 +425,15 @@ public final class Executor {
         boolean any = false;
         for (int i = 0; i < step.index; i++) {
             Plan.Step prev = plan.steps.get(i);
+            String r = prev.result == null ? "" : prev.result;
+            if (r.length() > 300) r = r.substring(0, 300) + " …";
             if (prev.status == Plan.StepStatus.DONE) {
                 sb.append("- Step ").append(i + 1).append(": ")
-                  .append(prev.result).append("\n");
+                  .append(r).append("\n");
                 any = true;
             } else if (prev.status == Plan.StepStatus.FAILED) {
                 sb.append("- Step ").append(i + 1)
-                  .append(": FAILED — ").append(prev.result).append("\n");
+                  .append(": FAILED — ").append(r).append("\n");
                 any = true;
             }
         }

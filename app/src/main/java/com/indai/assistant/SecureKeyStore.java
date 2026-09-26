@@ -85,8 +85,6 @@ public class SecureKeyStore {
         int savedVersion = prefs.getInt("prompt_version", 0);
 
         boolean isOldDefault = saved.isEmpty()
-                || saved.startsWith("You are NOVA,")
-                || saved.startsWith("You are NOVA ")
                 || saved.startsWith("You are Ind AI, a highly capable");
 
         if (isOldDefault || savedVersion < PROMPT_VERSION) {

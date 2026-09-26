@@ -48,6 +48,13 @@ public class AiClient {
 
     public JSONArray getHistory() { return new JSONArray(history); }
 
+    /** Live list for diagnostics — do not mutate. */
+    public java.util.List<JSONObject> getHistoryAsList() {
+        return new java.util.ArrayList<>(history);
+    }
+
+    public int historySize() { return history.size(); }
+
     public void setHistory(JSONArray arr) {
         history.clear();
         for (int i = 0; i < arr.length(); i++) {
@@ -101,7 +108,7 @@ public class AiClient {
             body.put("top_p", 0.95);
             body.put("max_tokens", 2048);
             body.put("stream", true);
-            body.put("messages", new JSONArray(history));
+            body.put("messages", ContextBuilder.build(history));
 
             URL url = new URL(config.endpoint);
             conn = (HttpURLConnection) url.openConnection();

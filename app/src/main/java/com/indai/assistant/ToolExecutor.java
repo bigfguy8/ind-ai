@@ -23,9 +23,45 @@ public final class ToolExecutor {
             listener.onResult("Refused: unknown tool '" + call.name + "'");
             return;
         }
+
+        // Wrap the listener so every result goes through ToolVerifier
+        final Listener wrapped = wrapWithVerifier(ctx, call, listener);
+        executeInner(ctx, call, wrapped);
+    }
+
+    /** Wraps a listener so results are verified before being delivered. */
+    private static Listener wrapWithVerifier(final Context ctx,
+                                             final Tools.Call call,
+                                             final Listener inner) {
+        return new Listener() {
+            @Override public void onNeedsConfirmation(String summary, Runnable confirmAction) {
+                inner.onNeedsConfirmation(summary, confirmAction);
+            }
+
+            @Override public void onResult(final String result) {
+                // Skip verification for markers that MainActivity/Executor intercept
+                if (result != null && (result.startsWith("__SEE_SCREEN_")
+                        || result.startsWith("__BLOCKED_"))) {
+                    inner.onResult(result);
+                    return;
+                }
+
+                ToolVerifier.Outcome outcome = ToolVerifier.verify(ctx, call, result);
+                String annotated = result;
+                if (outcome.isFailed()) {
+                    annotated = result + "\n[unverified — " + outcome.detail + "]";
+                } else if (outcome.isVerified()) {
+                    annotated = result + "\n[verified — " + outcome.detail + "]";
+                }
+                inner.onResult(annotated);
+            }
+        };
+    }
+
+    private static void executeInner(final Context ctx, final Tools.Call call, final Listener listener) {
         // Only block if THIS tool requires accessibility
         if (Tools.requiresAccessibility(call.name)
-                && !NovaAccessibilityService.isRunning()) {
+                && !IndAIAccessibilityService.isRunning()) {
             listener.onResult("__BLOCKED_ACCESSIBILITY__"
                     + "This action needs screen control, which is not enabled on this device. "
                     + "Tell the user to enable Accessibility for Ind AI in system settings, "
@@ -41,7 +77,7 @@ public final class ToolExecutor {
     }
 
     private static void runNow(Context ctx, Tools.Call call, Listener listener) {
-        NovaAccessibilityService svc = NovaAccessibilityService.get();
+        IndAIAccessibilityService svc = IndAIAccessibilityService.get();
         if (svc == null) {
             listener.onResult("Accessibility service disconnected.");
             return;
@@ -184,7 +220,7 @@ public final class ToolExecutor {
                     }
                     listener.onResult("__SEE_SCREEN_PENDING__");
                     final ToolExecutor.Listener lf = listener;
-                    svc.takeScreenshotBitmap(new NovaAccessibilityService.ScreenshotCallback() {
+                    svc.takeScreenshotBitmap(new IndAIAccessibilityService.ScreenshotCallback() {
                         @Override public void onBitmap(android.graphics.Bitmap bmp) {
                             try {
                                 java.io.File f = new java.io.File(

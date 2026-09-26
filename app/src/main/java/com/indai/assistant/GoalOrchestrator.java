@@ -65,7 +65,10 @@ public class GoalOrchestrator {
 
         String memBlock = memoryStore != null ? memoryStore.asSystemBlock() : "";
         String goalContext = buildGoalContext(goal);
-        Planner.plan(config, goalContext + "\n\n" + goal.description, memBlock,
+        // Prepend the goal-management directive to the memory block, not to the goal text,
+        // so it shapes the model's behavior without becoming the plan title.
+        String systemCtx = goalContext + "\n" + memBlock;
+        Planner.plan(config, goal.description, systemCtx,
                 new Planner.Callback() {
             @Override public void onPlan(Plan plan) {
                 if (plan == null || plan.size() == 0) {
@@ -265,6 +268,31 @@ public class GoalOrchestrator {
                 goal.planJson = done.toJson();
                 goal.totalSteps = done.size();
                 goal.currentStep = done.completedCount();
+
+                // Guard: don't call it complete if nothing actually ran.
+                if (done.size() == 0 || done.completedCount() == 0) {
+                    goal.status = Goal.Status.BLOCKED;
+                    // Include the first failed step's reason for a useful message.
+                    String reason = "No steps completed";
+                    for (Plan.Step s : done.steps) {
+                        if (s.status == Plan.StepStatus.FAILED
+                                && s.result != null && !s.result.isEmpty()) {
+                            String r = s.result;
+                            if (r.contains("429")) {
+                                reason = "Rate limit hit (429). Wait 1 minute or switch "
+                                       + "provider in Settings.";
+                            } else {
+                                reason = r;
+                            }
+                            break;
+                        }
+                    }
+                    goal.lastError = reason;
+                    goalStore.update(goal);
+                    currentGoalId = null;
+                    if (listener != null) listener.onGoalFailed(snapshot(goal), goal.lastError);
+                    return;
+                }
 
                 if (done.status == Plan.OverallStatus.DONE
                         && done.failedCount() == 0) {

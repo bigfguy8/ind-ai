@@ -13,9 +13,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NovaAccessibilityService extends AccessibilityService {
+public class IndAIAccessibilityService extends AccessibilityService {
 
-    private static volatile NovaAccessibilityService INSTANCE;
+    private static volatile IndAIAccessibilityService INSTANCE;
 
     public interface ScreenshotCallback {
         void onBitmap(Bitmap bitmap);
@@ -48,7 +48,7 @@ public class NovaAccessibilityService extends AccessibilityService {
         }
     }
 
-    public static NovaAccessibilityService get() { return INSTANCE; }
+    public static IndAIAccessibilityService get() { return INSTANCE; }
     public static boolean isRunning() { return INSTANCE != null; }
 
     @Override

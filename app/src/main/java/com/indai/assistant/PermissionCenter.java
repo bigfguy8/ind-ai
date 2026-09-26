@@ -13,7 +13,7 @@ public final class PermissionCenter {
     public static final int REQ_MIC = 1001;
 
     public static boolean accessibilityEnabled(Context c) {
-        if (NovaAccessibilityService.isRunning()) return true;
+        if (IndAIAccessibilityService.isRunning()) return true;
         String enabled = Settings.Secure.getString(
                 c.getContentResolver(),
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);

@@ -87,8 +87,8 @@ public class CapabilitiesActivity extends Activity {
 
         addRow("Accessibility Service",
                 PermissionCenter.accessibilityEnabled(this) ? "Enabled" : "Disabled",
-                "Lets NOVA tap buttons, type, scroll and read visible text on your "
-                        + "instruction. NOVA never reads passwords and never bypasses "
+                "Lets Ind AI tap buttons, type, scroll and read visible text on your "
+                        + "instruction. Ind AI never reads passwords and never bypasses "
                         + "Android security prompts.",
                 PermissionCenter.accessibilityEnabled(this) ? null
                         : v -> PermissionCenter.openAccessibilitySettings(this));
@@ -104,7 +104,7 @@ public class CapabilitiesActivity extends Activity {
 
         addRow("Notifications",
                 PermissionCenter.notificationsGranted(this) ? "Granted" : "Denied",
-                "Optional. Used only for informational notices from NOVA.",
+                "Optional. Used only for informational notices from Ind AI.",
                 PermissionCenter.notificationsGranted(this) ? null
                         : v -> {
                             if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -118,7 +118,7 @@ public class CapabilitiesActivity extends Activity {
 
         addRow("App details",
                 "Open",
-                "All Android permissions NOVA currently holds can be reviewed "
+                "All Android permissions Ind AI currently holds can be reviewed "
                         + "or revoked in system settings.",
                 v -> PermissionCenter.openAppDetails(this));
     }

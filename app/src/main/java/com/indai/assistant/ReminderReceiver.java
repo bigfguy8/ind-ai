@@ -26,8 +26,8 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(
-                    CHANNEL, "NOVA Reminders", NotificationManager.IMPORTANCE_HIGH);
-            ch.setDescription("Reminders you asked NOVA to schedule.");
+                    CHANNEL, "Ind AI Reminders", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("Reminders you asked Ind AI to schedule.");
             nm.createNotificationChannel(ch);
         }
 
@@ -45,7 +45,7 @@ public class ReminderReceiver extends BroadcastReceiver {
             b = new Notification.Builder(context);
         }
         b.setSmallIcon(R.drawable.ic_mic)
-         .setContentTitle("NOVA Reminder")
+         .setContentTitle("Ind AI Reminder")
          .setContentText(text)
          .setStyle(new Notification.BigTextStyle().bigText(text))
          .setAutoCancel(true)

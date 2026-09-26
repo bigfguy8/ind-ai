@@ -32,6 +32,9 @@ public class AgentActivity extends Activity {
     private AgentRenderer.PlanCard currentCard;
     private GoalOrchestrator orchestrator;
     private GoalStore goalStore;
+    private AgentEngine agentEngine;
+    private volatile boolean uiBusy = false;
+    private View runButtonRef;
 
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -46,6 +49,7 @@ public class AgentActivity extends Activity {
         historyStore = new AgentHistoryStore(this);
         orchestrator = new GoalOrchestrator(this, config, memoryStore);
         goalStore = orchestrator.store();
+        agentEngine = new AgentEngine(this, engineListener);
         build();
     }
 
@@ -184,6 +188,7 @@ public class AgentActivity extends Activity {
         lp.gravity = Gravity.CENTER;
         wrap.addView(label, lp);
 
+        runButtonRef = wrap;
         wrap.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 v.performHapticFeedback(
@@ -199,17 +204,90 @@ public class AgentActivity extends Activity {
                     toast("Cancelling...");
                     return;
                 }
+                if (uiBusy || (orchestrator != null && orchestrator.isRunning())) {
+                    toast("A goal is already running. Cancel it first.");
+                    return;
+                }
+                uiBusy = true;
+                v.setEnabled(false);
+                v.setAlpha(0.5f);
                 String goal = input.getText().toString().trim();
                 if (goal.isEmpty()) return;
                 input.setText("");
-                startTask(goal);
+                appendGoalBubble(goal);
+                agentEngine.handle(goal, config, memoryStore);
             }
         });
         return wrap;
     }
 
-    private void startTask(final String goalText) {
-        appendGoalBubble(goalText);
+    private final AgentEngine.Listener engineListener = new AgentEngine.Listener() {
+        @Override public void onFastPathResult(final String result) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    uiBusy = false;
+                    if (runButtonRef != null) {
+                        runButtonRef.setEnabled(true);
+                        runButtonRef.setAlpha(1f);
+                    }
+                    appendReportBubble(result);
+                    headerStatus.setText("Give Ind AI a goal. It plans, executes, and reports.");
+                }
+            });
+        }
+
+        @Override public void onNeedsConfirmation(String summary,
+                                                  final Runnable confirm,
+                                                  final Runnable cancel) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    uiBusy = false;
+                    if (runButtonRef != null) {
+                        runButtonRef.setEnabled(true);
+                        runButtonRef.setAlpha(1f);
+                    }
+                    new AlertDialog.Builder(AgentActivity.this)
+                            .setTitle("Confirm action")
+                            .setMessage(summary)
+                            .setPositiveButton("Allow", (d, w) -> confirm.run())
+                            .setNegativeButton("Deny", (d, w) -> cancel.run())
+                            .show();
+                }
+            });
+        }
+
+        @Override public void onFastPathFailed(final String reason) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    appendNoteBubble("Fast path failed: " + reason);
+                }
+            });
+        }
+
+        @Override public void onHandoffToPlanner(final String goalText) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    runAgentPlan(goalText);
+                }
+            });
+        }
+
+        @Override public void onBudgetExhausted(final String reason) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    uiBusy = false;
+                    if (runButtonRef != null) {
+                        runButtonRef.setEnabled(true);
+                        runButtonRef.setAlpha(1f);
+                    }
+                    appendReportBubble("Budget exhausted: " + reason);
+                    headerStatus.setText("Give Ind AI a goal. It plans, executes, and reports.");
+                }
+            });
+        }
+    };
+
+    private void runAgentPlan(final String goalText) {
         headerStatus.setText("Planning goal...");
 
         // Wire orchestrator listener to render plan card + feed
@@ -223,6 +301,11 @@ public class AgentActivity extends Activity {
             }
 
             @Override public void onGoalCompleted(final Goal goal) {
+                uiBusy = false;
+                if (runButtonRef != null) {
+                    runButtonRef.setEnabled(true);
+                    runButtonRef.setAlpha(1f);
+                }
                 main.post(new Runnable() {
                     @Override public void run() {
                         updateFromGoal(goal);
@@ -234,6 +317,11 @@ public class AgentActivity extends Activity {
             }
 
             @Override public void onGoalFailed(final Goal goal, final String error) {
+                uiBusy = false;
+                if (runButtonRef != null) {
+                    runButtonRef.setEnabled(true);
+                    runButtonRef.setAlpha(1f);
+                }
                 main.post(new Runnable() {
                     @Override public void run() {
                         if (goal != null) updateFromGoal(goal);

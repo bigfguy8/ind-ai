@@ -87,7 +87,7 @@
             android:label="Agent" />
 
         <service
-            android:name=".NovaAccessibilityService"
+            android:name=".IndAIAccessibilityService"
             android:exported="true"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -96,7 +96,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
-                android:resource="@xml/nova_accessibility" />
+                android:resource="@xml/indai_accessibility" />
         </service>
 
         <receiver
