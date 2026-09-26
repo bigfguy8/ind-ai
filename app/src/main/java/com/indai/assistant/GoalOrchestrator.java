@@ -277,13 +277,9 @@ public class GoalOrchestrator {
                     for (Plan.Step s : done.steps) {
                         if (s.status == Plan.StepStatus.FAILED
                                 && s.result != null && !s.result.isEmpty()) {
-                            String r = s.result;
-                            if (r.contains("429")) {
-                                reason = "Rate limit hit (429). Wait 1 minute or switch "
-                                       + "provider in Settings.";
-                            } else {
-                                reason = r;
-                            }
+                            FailureClassifier.Type t =
+                                    FailureClassifier.classify(s.result);
+                            reason = FailureClassifier.humanMessage(t, s.result);
                             break;
                         }
                     }

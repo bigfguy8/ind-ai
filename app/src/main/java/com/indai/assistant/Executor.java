@@ -28,7 +28,7 @@ public final class Executor {
 
     private static final int MAX_ITER_PER_STEP = 2;
     private static final int TOOL_TIMEOUT_MS = 10000;
-    private static final int MAX_STEP_RETRIES = 0;
+    private static final int MAX_STEP_RETRIES = 1;
     private static final int MAX_REPLANS = 1;
     private static final long API_RETRY_DELAY_MS = 3500;
     private static final long MIN_CALL_GAP_MS = 2000;
@@ -89,22 +89,45 @@ public final class Executor {
                         continue;
                     }
 
-                    // ---- Retry ----
+                    FailureClassifier.Type failureType =
+                            FailureClassifier.classify(step.result);
+                    listener.onStepNote(step.index,
+                            "[failure: " + failureType.name() + "]");
+
                     boolean retried = false;
-                    for (int r = 0; r < MAX_STEP_RETRIES; r++) {
-                        if (listener.isCancelled()) break;
-                        step.attempts++;
-                        step.status = Plan.StepStatus.RETRYING;
-                        listener.onStepRetrying(step.index);
-                        boolean retrySuccess = runStep(ctx, config, plan, step, listener);
-                        if (retrySuccess) {
-                            retried = true;
-                            break;
+                    if (FailureClassifier.isRetryable(failureType)) {
+                        long delay = FailureClassifier.retryDelayMs(failureType);
+                        for (int r = 0; r < MAX_STEP_RETRIES; r++) {
+                            if (listener.isCancelled()) break;
+                            step.attempts++;
+                            step.status = Plan.StepStatus.RETRYING;
+                            listener.onStepRetrying(step.index);
+                            if (delay > 0) {
+                                try { Thread.sleep(delay); }
+                                catch (InterruptedException ignored) {}
+                            }
+                            boolean retrySuccess = runStep(ctx, config, plan, step, listener);
+                            if (retrySuccess) { retried = true; break; }
+                            FailureClassifier.Type after =
+                                    FailureClassifier.classify(step.result);
+                            if (!FailureClassifier.isRetryable(after)) break;
                         }
+                    } else {
+                        listener.onStepNote(step.index,
+                                "[no retry — " + failureType.name() + "]");
                     }
                     if (retried) { i++; continue; }
 
-                    // ---- Replan ----
+                    if (!FailureClassifier.shouldReplan(failureType)) {
+                        step.status = Plan.StepStatus.FAILED;
+                        step.result = FailureClassifier.humanMessage(
+                                failureType, step.result);
+                        step.finishedAt = System.currentTimeMillis();
+                        listener.onStepFinished(step.index, false, step.result);
+                        i++;
+                        continue;
+                    }
+
                     if (replanCount >= MAX_REPLANS || listener.isCancelled()) {
                         step.status = Plan.StepStatus.FAILED;
                         step.finishedAt = System.currentTimeMillis();
